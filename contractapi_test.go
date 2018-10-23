@@ -23,6 +23,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/go-openapi/spec"
+
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	"github.com/hyperledger/fabric/protos/peer"
 	"github.com/stretchr/testify/assert"
@@ -60,6 +62,21 @@ var uint64TypeVar = new(uint64Type)
 var float32TypeVar = new(float32Type)
 var float64TypeVar = new(float64Type)
 
+var boolRefType = reflect.TypeOf(true)
+var stringRefType = reflect.TypeOf("")
+var intRefType = reflect.TypeOf(1)
+var int8RefType = reflect.TypeOf(int8(1))
+var int16RefType = reflect.TypeOf(int16(1))
+var int32RefType = reflect.TypeOf(int32(1))
+var int64RefType = reflect.TypeOf(int64(1))
+var uintRefType = reflect.TypeOf(uint(1))
+var uint8RefType = reflect.TypeOf(uint8(1))
+var uint16RefType = reflect.TypeOf(uint16(1))
+var uint32RefType = reflect.TypeOf(uint32(1))
+var uint64RefType = reflect.TypeOf(uint64(1))
+var float32RefType = reflect.TypeOf(float32(1.0))
+var float64RefType = reflect.TypeOf(1.0)
+
 var standardExtras = []string{"Extra1", "Extra2"}
 
 func testConvertError(t *testing.T, bt basicType, toPass string, expectedType string) {
@@ -68,6 +85,29 @@ func testConvertError(t *testing.T, bt basicType, toPass string, expectedType st
 	val, err := bt.convert(toPass)
 	assert.EqualError(t, err, fmt.Sprintf("Cannot convert passed value %s to %s", toPass, expectedType), "should return error for invalid value")
 	assert.Equal(t, reflect.Value{}, val, "should have returned the blank value")
+}
+
+func testBuildArrayOrSliceSchema(t *testing.T, toTest interface{}, expectedSchema *spec.Schema) {
+	t.Helper()
+
+	arr := reflect.ValueOf(toTest)
+
+	schema, err := buildArrayOrSliceSchema(arr)
+
+	assert.Nil(t, err, "should not return error for valid array")
+	assert.Equal(t, expectedSchema, schema, "should have returned expected schema")
+}
+
+func testGetSchema(t *testing.T, typ reflect.Type, expectedSchema *spec.Schema) {
+	var schema *spec.Schema
+	var err error
+
+	t.Helper()
+
+	schema, err = getSchema(typ)
+
+	assert.Nil(t, err, "err should be nil when not erroring")
+	assert.Equal(t, expectedSchema, schema, "should return expected schema for type")
 }
 
 func testArrayOfValidTypeIsValid(t *testing.T, arr interface{}) {
@@ -129,8 +169,6 @@ func testMethod2ContractFunctionParams(t *testing.T, funcFromStruct bool) {
 	customCtxType := reflect.ValueOf(new(customContext)).Type()
 
 	genericMethodName := "Function"
-
-	stringType := basicTypes[reflect.String].getType()
 
 	// Should return error when method takes in type not in validParams
 	if funcFromStruct {
@@ -196,8 +234,8 @@ func testMethod2ContractFunctionParams(t *testing.T, funcFromStruct bool) {
 
 	expectedCFParams.context = nil
 	expectedCFParams.fields = []reflect.Type{
-		stringType,
-		stringType,
+		stringRefType,
+		stringRefType,
 	}
 
 	assert.Nil(t, err, "should not return err for valid method")
@@ -213,8 +251,8 @@ func testMethod2ContractFunctionParams(t *testing.T, funcFromStruct bool) {
 
 	expectedCFParams.context = basicContextPtrType
 	expectedCFParams.fields = []reflect.Type{
-		stringType,
-		stringType,
+		stringRefType,
+		stringRefType,
 	}
 
 	assert.Nil(t, err, "should not return err for valid method")
@@ -230,20 +268,20 @@ func testMethod2ContractFunctionParams(t *testing.T, funcFromStruct bool) {
 
 	expectedCFParams.context = nil
 	expectedCFParams.fields = []reflect.Type{
-		stringType,
-		basicTypes[reflect.Bool].getType(),
-		basicTypes[reflect.Int].getType(),
-		basicTypes[reflect.Int8].getType(),
-		basicTypes[reflect.Int16].getType(),
-		basicTypes[reflect.Int32].getType(),
-		basicTypes[reflect.Int64].getType(),
-		basicTypes[reflect.Uint].getType(),
-		basicTypes[reflect.Uint8].getType(),
-		basicTypes[reflect.Uint16].getType(),
-		basicTypes[reflect.Uint32].getType(),
-		basicTypes[reflect.Uint64].getType(),
-		basicTypes[reflect.Float32].getType(),
-		basicTypes[reflect.Float64].getType(),
+		stringRefType,
+		boolRefType,
+		intRefType,
+		int8RefType,
+		int16RefType,
+		int32RefType,
+		int64RefType,
+		uintRefType,
+		uint8RefType,
+		uint16RefType,
+		uint32RefType,
+		uint64RefType,
+		float32RefType,
+		float64RefType,
 		reflect.TypeOf(byte(1)),
 		reflect.TypeOf(rune(1)),
 	}
@@ -417,11 +455,11 @@ func testMethod2ContractFunctionReturns(t *testing.T, funcFromStruct bool) {
 
 	// Should return contractFunctionReturns for single value return of type string
 	funcToTest = generateMethodTypesAndValuesFromFunc(mc.ReturnsString)
-	testMethod2ContractFunctionReturnsSingleType(t, funcFromStruct, funcToTest, "ReturnsString", stringTypeVar.getType())
+	testMethod2ContractFunctionReturnsSingleType(t, funcFromStruct, funcToTest, "ReturnsString", stringRefType)
 
 	// Should return contractFunctionReturns for a basic type return value
 	funcToTest = generateMethodTypesAndValuesFromFunc(mc.ReturnsInt)
-	testMethod2ContractFunctionReturnsSingleType(t, funcFromStruct, funcToTest, "ReturnsInt", intTypeVar.getType())
+	testMethod2ContractFunctionReturnsSingleType(t, funcFromStruct, funcToTest, "ReturnsInt", intRefType)
 
 	// Should return contractFunctionReturns for a array of basic type return value
 	funcToTest = generateMethodTypesAndValuesFromFunc(mc.ReturnsArray)
@@ -453,7 +491,7 @@ func testMethod2ContractFunctionReturns(t *testing.T, funcFromStruct bool) {
 		method = generateMethodTypesAndValuesFromFunc(mc.ReturnsStringAndError)
 	}
 
-	expectedCFReturns.success = stringTypeVar.getType()
+	expectedCFReturns.success = stringRefType
 	expectedCFReturns.error = true
 
 	returns, err = method2ContractFunctionReturns(method)
@@ -603,13 +641,64 @@ func testGetArgsWithTypes(t *testing.T, types map[reflect.Kind]interface{}, para
 	ctx := new(TransactionContext)
 
 	for kind, expectedArgs := range types {
+		var typ reflect.Type
+
+		switch kind {
+		case reflect.Bool:
+			typ = boolRefType
+		case reflect.String:
+			typ = stringRefType
+		case reflect.Int:
+			typ = intRefType
+		case reflect.Int8:
+			typ = int8RefType
+		case reflect.Int16:
+			typ = int16RefType
+		case reflect.Int32:
+			typ = int32RefType
+		case reflect.Int64:
+			typ = int64RefType
+		case reflect.Uint:
+			typ = uintRefType
+		case reflect.Uint8:
+			typ = uint8RefType
+		case reflect.Uint16:
+			typ = uint16RefType
+		case reflect.Uint32:
+			typ = uint32RefType
+		case reflect.Uint64:
+			typ = uint64RefType
+		case reflect.Float32:
+			typ = float32RefType
+		case reflect.Float64:
+			typ = float64RefType
+		}
+
 		setContractFunctionParams(&cf, nil, []reflect.Type{
-			basicTypes[kind].getType(),
+			typ,
 		})
 
 		values := callGetArgsAndBasicTest(t, cf, ctx, params)
 		testReflectValueEqualSlice(t, values, expectedArgs)
 	}
+}
+
+func compareJSON(t *testing.T, actual []byte, expected []byte) {
+	t.Helper()
+
+	actualMap := make(map[string]interface{})
+	expectedMap := make(map[string]interface{})
+
+	err := json.Unmarshal(actual, &actualMap)
+	if err != nil {
+		assert.Fail(t, err.Error())
+	}
+	err = json.Unmarshal(expected, &expectedMap)
+	if err != nil {
+		assert.Fail(t, err.Error())
+	}
+
+	assert.Equal(t, actualMap, expectedMap, "JSONs to compare should have been equal")
 }
 
 func testMetadata(t *testing.T, metadata string, expectedMetadata MetadataContractChaincode) {
@@ -629,7 +718,7 @@ func testContractChaincodeNamespaceRepresentsContract(t *testing.T, ccns contrac
 	assert.Equal(t, len(expectedSimpleContractFuncs), len(ccns.functions), "should only have one function as simpleTestContract")
 
 	assert.Equal(t, ccns.functions["DoSomething"].params, contractFunctionParams{nil, nil}, "should set correct params for contract function")
-	assert.Equal(t, ccns.functions["DoSomething"].returns, contractFunctionReturns{stringTypeVar.getType(), true}, "should set correct returns for contract function")
+	assert.Equal(t, ccns.functions["DoSomething"].returns, contractFunctionReturns{stringRefType, true}, "should set correct returns for contract function")
 
 	transactionContextHandler := reflect.ValueOf(contract.GetTransactionContextHandler()).Elem().Type()
 	transactionContextPtrHandler := reflect.ValueOf(contract.GetTransactionContextHandler()).Type()
@@ -677,20 +766,15 @@ func testConvertCC(t *testing.T, testData []simpleTestContract) {
 	assert.Equal(t, len(testData)+1, len(cc.contracts), "Didn't map correct number of smart contracts")
 
 	expectedSysMetadata := MetadataContractChaincode{}
-	systemMetadataFunctions := make(map[string]MetadataFunction)
-	systemMetadataFunctions["GetMetadata"] = MetadataFunction{
-		[]MetadataParam{},
-		[]string{"string"},
-	}
-	expectedSysMetadata.Namespaces = make(map[string]MetadataNamespace)
-	expectedSysMetadata.Namespaces[SystemContractNamespace] = MetadataNamespace{
-		systemMetadataFunctions,
-	}
 
-	simpleTestContractFunctions := make(map[string]MetadataFunction)
-	simpleTestContractFunctions["DoSomething"] = MetadataFunction{
-		[]MetadataParam{},
-		[]string{"string", "error"},
+	errorSchema := new(spec.Schema)
+	errorSchema.Typed("object", "error")
+
+	simpleContractFunctionMetadata := MetadataFunction{}
+	simpleContractFunctionMetadata.TransactionID = "DoSomething"
+	simpleContractFunctionMetadata.Return = []spec.Parameter{
+		*(spec.BodyParam("success", stringTypeVar.getSchema())),
+		*(spec.BodyParam("error", errorSchema)),
 	}
 
 	// Test that the data set for each contract in chaincode is correct e.g. unknown fn set etc
@@ -700,9 +784,13 @@ func testConvertCC(t *testing.T, testData []simpleTestContract) {
 
 		nsContract, ok := cc.contracts[ns]
 
-		expectedSysMetadata.Namespaces[ns] = MetadataNamespace{
-			simpleTestContractFunctions,
+		contractMetadata := MetadataContract{}
+		contractMetadata.Namespace = ns
+		contractMetadata.Transactions = []MetadataFunction{
+			simpleContractFunctionMetadata,
 		}
+
+		expectedSysMetadata.Contracts = append(expectedSysMetadata.Contracts, contractMetadata)
 
 		assert.True(t, ok, "should have namespace in map of contracts")
 
@@ -720,6 +808,20 @@ func testConvertCC(t *testing.T, testData []simpleTestContract) {
 	fn, ok := sysContract.functions["GetMetadata"]
 
 	assert.True(t, ok, "should have GetMetadata for system contract")
+
+	systemContractFunctionMetadata := MetadataFunction{}
+	systemContractFunctionMetadata.TransactionID = "GetMetadata"
+	systemContractFunctionMetadata.Return = []spec.Parameter{
+		*(spec.BodyParam("success", stringTypeVar.getSchema())),
+	}
+
+	systemContractMetadata := MetadataContract{}
+	systemContractMetadata.Namespace = SystemContractNamespace
+	systemContractMetadata.Transactions = []MetadataFunction{
+		systemContractFunctionMetadata,
+	}
+
+	expectedSysMetadata.Contracts = append(expectedSysMetadata.Contracts, systemContractMetadata)
 
 	metadata, _ := fn.call(reflect.Value{})
 
@@ -980,65 +1082,215 @@ func TestConvert(t *testing.T) {
 	testConvertError(t, float64TypeVar, "gibberish", "float64")
 }
 
-func TestGetType(t *testing.T) {
-	var typ reflect.Type
+func TestBuildArraySchema(t *testing.T) {
+	var schema *spec.Schema
+	var err error
 
-	stringType := stringType{}
-	boolType := boolType{}
-	intType := intType{}
-	int8Type := int8Type{}
-	int16Type := int16Type{}
-	int32Type := int32Type{}
-	int64Type := int64Type{}
-	uintType := uintType{}
-	uint8Type := uint8Type{}
-	uint16Type := uint16Type{}
-	uint32Type := uint32Type{}
-	uint64Type := uint64Type{}
-	float32Type := float32Type{}
-	float64Type := float64Type{}
+	// Should return an error when array is passed with a length of zero
+	zeroArr := [0]int{}
+	schema, err = buildArraySchema(reflect.ValueOf(zeroArr))
 
-	typ = stringType.getType()
-	assert.Equal(t, reflect.String, typ.Kind(), "should return a string reflect type")
+	assert.Equal(t, errors.New("Arrays must have length greater than 0"), err, "should throw error when 0 length array passed")
+	assert.Nil(t, schema, "should not have returned a schema for zero array")
 
-	typ = boolType.getType()
-	assert.Equal(t, reflect.Bool, typ.Kind(), "should return a bool reflect type")
+	// Should return error when buildArrayOrSliceSchema would
+	schema, err = buildArraySchema(reflect.ValueOf([1]myContract{}))
+	_, expectedErr := buildArrayOrSliceSchema(reflect.ValueOf([1]myContract{}))
 
-	typ = intType.getType()
-	assert.Equal(t, reflect.Int, typ.Kind(), "should return an int reflect type")
+	assert.Nil(t, schema, "spec should be nil when buildArrayOrSliceSchema fails from buildArraySchema")
+	assert.Equal(t, expectedErr, err, "should have same error as buildArrayOrSliceSchema")
+}
 
-	typ = int8Type.getType()
-	assert.Equal(t, reflect.Int8, typ.Kind(), "should return an int8 reflect type")
+func TestBuildSliceSchema(t *testing.T) {
+	var schema *spec.Schema
+	var err error
 
-	typ = int16Type.getType()
-	assert.Equal(t, reflect.Int16, typ.Kind(), "should return an int16 reflect type")
+	// Should handle adding to the length of the slice if currently 0
+	assert.NotPanics(t, func() { buildSliceSchema(reflect.ValueOf([]string{})) }, "shouldn't have panicked when slice sent was empty")
 
-	typ = int32Type.getType()
-	assert.Equal(t, reflect.Int32, typ.Kind(), "should return an int32 reflect type")
+	// Should return error when buildArrayOrSliceSchema would
+	schema, err = buildSliceSchema(reflect.ValueOf([]myContract{}))
+	_, expectedErr := buildArrayOrSliceSchema(reflect.ValueOf([]myContract{myContract{}}))
 
-	typ = int64Type.getType()
-	assert.Equal(t, reflect.Int64, typ.Kind(), "should return an int64 reflect type")
+	assert.Nil(t, schema, "spec should be nil when buildArrayOrSliceSchema fails from buildSliceSchema")
+	assert.Equal(t, expectedErr, err, "should have same error as buildArrayOrSliceSchema")
+}
 
-	typ = uintType.getType()
-	assert.Equal(t, reflect.Uint, typ.Kind(), "should return an uint reflect type")
+func TestBuildArrayOrSliceSchema(t *testing.T) {
+	var err error
+	var schema *spec.Schema
 
-	typ = uint8Type.getType()
-	assert.Equal(t, reflect.Uint8, typ.Kind(), "should return an uint8 reflect type")
+	stringArraySchema := spec.ArrayProperty(stringTypeVar.getSchema())
+	boolArraySchema := spec.ArrayProperty(boolTypeVar.getSchema())
+	intArraySchema := spec.ArrayProperty(intTypeVar.getSchema())
+	int8ArraySchema := spec.ArrayProperty(int8TypeVar.getSchema())
+	int16ArraySchema := spec.ArrayProperty(int16TypeVar.getSchema())
+	int32ArraySchema := spec.ArrayProperty(int32TypeVar.getSchema())
+	int64ArraySchema := spec.ArrayProperty(int64TypeVar.getSchema())
+	uintArraySchema := spec.ArrayProperty(uintTypeVar.getSchema())
+	uint8ArraySchema := spec.ArrayProperty(uint8TypeVar.getSchema())
+	uint16ArraySchema := spec.ArrayProperty(uint16TypeVar.getSchema())
+	uint32ArraySchema := spec.ArrayProperty(uint32TypeVar.getSchema())
+	uint64ArraySchema := spec.ArrayProperty(uint64TypeVar.getSchema())
+	float32ArraySchema := spec.ArrayProperty(float32TypeVar.getSchema())
+	float64ArraySchema := spec.ArrayProperty(float64TypeVar.getSchema())
 
-	typ = uint16Type.getType()
-	assert.Equal(t, reflect.Uint16, typ.Kind(), "should return an uint16 reflect type")
+	validParams := make([]string, 0, len(basicTypes))
+	for k := range basicTypes {
+		validParams = append(validParams, k.String())
+	}
+	sort.Strings(validParams)
 
-	typ = uint32Type.getType()
-	assert.Equal(t, reflect.Uint32, typ.Kind(), "should return an uint32 reflect type")
+	// Should return error when array is not one of the basic types
+	badArr := [1]myContract{}
+	schema, err = buildArrayOrSliceSchema(reflect.ValueOf(badArr))
 
-	typ = uint64Type.getType()
-	assert.Equal(t, reflect.Uint64, typ.Kind(), "should return an uint64 reflect type")
+	assert.Equal(t, fmt.Errorf("Slices/Arrays can only have base types %s. Slice/Array has basic type struct", listBasicTypes()), err, "should throw error when invalid type passed")
+	assert.Nil(t, schema, "should not have returned a schema for an array of bad type")
 
-	typ = float32Type.getType()
-	assert.Equal(t, reflect.Float32, typ.Kind(), "should return an float32 reflect type")
+	// Should return an error when array is passed with sub array with a length of zero
+	zeroSubArr := [1][0]int{}
+	schema, err = buildArrayOrSliceSchema(reflect.ValueOf(zeroSubArr))
 
-	typ = float64Type.getType()
-	assert.Equal(t, reflect.Float64, typ.Kind(), "should return an float64 reflect type")
+	assert.Equal(t, errors.New("Arrays must have length greater than 0"), err, "should throw error when 0 length array passed")
+	assert.Nil(t, schema, "should not have returned a schema for zero array")
+
+	// Should return schema for arrays made of each of the basic types
+	testBuildArrayOrSliceSchema(t, [1]string{}, stringArraySchema)
+	testBuildArrayOrSliceSchema(t, [1]bool{}, boolArraySchema)
+	testBuildArrayOrSliceSchema(t, [1]int{}, intArraySchema)
+	testBuildArrayOrSliceSchema(t, [1]int8{}, int8ArraySchema)
+	testBuildArrayOrSliceSchema(t, [1]int16{}, int16ArraySchema)
+	testBuildArrayOrSliceSchema(t, [1]int32{}, int32ArraySchema)
+	testBuildArrayOrSliceSchema(t, [1]int64{}, int64ArraySchema)
+	testBuildArrayOrSliceSchema(t, [1]uint{}, uintArraySchema)
+	testBuildArrayOrSliceSchema(t, [1]uint8{}, uint8ArraySchema)
+	testBuildArrayOrSliceSchema(t, [1]uint16{}, uint16ArraySchema)
+	testBuildArrayOrSliceSchema(t, [1]uint32{}, uint32ArraySchema)
+	testBuildArrayOrSliceSchema(t, [1]uint64{}, uint64ArraySchema)
+	testBuildArrayOrSliceSchema(t, [1]float32{}, float32ArraySchema)
+	testBuildArrayOrSliceSchema(t, [1]float64{}, float64ArraySchema)
+	testBuildArrayOrSliceSchema(t, [1]byte{}, uint8ArraySchema)
+	testBuildArrayOrSliceSchema(t, [1]rune{}, int32ArraySchema)
+
+	// Should return schema for slices made of each of the basic types
+	testBuildArrayOrSliceSchema(t, []string{""}, stringArraySchema)
+	testBuildArrayOrSliceSchema(t, []bool{true}, boolArraySchema)
+	testBuildArrayOrSliceSchema(t, []int{1}, intArraySchema)
+	testBuildArrayOrSliceSchema(t, []int8{1}, int8ArraySchema)
+	testBuildArrayOrSliceSchema(t, []int16{1}, int16ArraySchema)
+	testBuildArrayOrSliceSchema(t, []int32{1}, int32ArraySchema)
+	testBuildArrayOrSliceSchema(t, []int64{1}, int64ArraySchema)
+	testBuildArrayOrSliceSchema(t, []uint{1}, uintArraySchema)
+	testBuildArrayOrSliceSchema(t, []uint8{1}, uint8ArraySchema)
+	testBuildArrayOrSliceSchema(t, []uint16{1}, uint16ArraySchema)
+	testBuildArrayOrSliceSchema(t, []uint32{1}, uint32ArraySchema)
+	testBuildArrayOrSliceSchema(t, []uint64{1}, uint64ArraySchema)
+	testBuildArrayOrSliceSchema(t, []float32{1}, float32ArraySchema)
+	testBuildArrayOrSliceSchema(t, []float64{1}, float64ArraySchema)
+	testBuildArrayOrSliceSchema(t, []byte{1}, uint8ArraySchema)
+	testBuildArrayOrSliceSchema(t, []rune{1}, int32ArraySchema)
+
+	// Should return error when multidimensional array is not one of the basic types
+	badMultiArr := [1][1]myContract{}
+	schema, err = buildArrayOrSliceSchema(reflect.ValueOf(badMultiArr))
+
+	assert.Equal(t, fmt.Errorf("Slices/Arrays can only have base types %s. Slice/Array has basic type struct", listBasicTypes()), err, "should throw error when 0 length array passed")
+	assert.Nil(t, schema, "schema should be nil when sub array bad type")
+
+	// Should return schema for multidimensional arrays made of each of the basic types
+	testBuildArrayOrSliceSchema(t, [1][1]string{}, spec.ArrayProperty(stringArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]bool{}, spec.ArrayProperty(boolArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]int{}, spec.ArrayProperty(intArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]int8{}, spec.ArrayProperty(int8ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]int16{}, spec.ArrayProperty(int16ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]int32{}, spec.ArrayProperty(int32ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]int64{}, spec.ArrayProperty(int64ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]uint{}, spec.ArrayProperty(uintArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]uint8{}, spec.ArrayProperty(uint8ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]uint16{}, spec.ArrayProperty(uint16ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]uint32{}, spec.ArrayProperty(uint32ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]uint64{}, spec.ArrayProperty(uint64ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]float32{}, spec.ArrayProperty(float32ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]float64{}, spec.ArrayProperty(float64ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]byte{}, spec.ArrayProperty(uint8ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]rune{}, spec.ArrayProperty(int32ArraySchema))
+
+	// Should return schema for multidimensional slices made of each of the basic types
+	testBuildArrayOrSliceSchema(t, [][]bool{[]bool{}}, spec.ArrayProperty(boolArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]int{[]int{}}, spec.ArrayProperty(intArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]int8{[]int8{}}, spec.ArrayProperty(int8ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]int16{[]int16{}}, spec.ArrayProperty(int16ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]int32{[]int32{}}, spec.ArrayProperty(int32ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]int64{[]int64{}}, spec.ArrayProperty(int64ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]uint{[]uint{}}, spec.ArrayProperty(uintArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]uint8{[]uint8{}}, spec.ArrayProperty(uint8ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]uint16{[]uint16{}}, spec.ArrayProperty(uint16ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]uint32{[]uint32{}}, spec.ArrayProperty(uint32ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]uint64{[]uint64{}}, spec.ArrayProperty(uint64ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]float32{[]float32{}}, spec.ArrayProperty(float32ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]float64{[]float64{}}, spec.ArrayProperty(float64ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]byte{[]byte{}}, spec.ArrayProperty(uint8ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]rune{[]rune{}}, spec.ArrayProperty(int32ArraySchema))
+
+	// Should handle an array many dimensions
+	testBuildArrayOrSliceSchema(t, [1][2][3][4][5][6][7][8]string{}, spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(stringArraySchema))))))))
+
+	// Should handle a slice of many dimensions
+	testBuildArrayOrSliceSchema(t, [][][][][][][][]string{[][][][][][][]string{}}, spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(stringArraySchema))))))))
+
+	// Should handle an array of slice
+	testBuildArrayOrSliceSchema(t, [1][]string{}, spec.ArrayProperty(stringArraySchema))
+
+	// Should handle a slice of array
+	testBuildArrayOrSliceSchema(t, [][1]string{[1]string{}}, spec.ArrayProperty(stringArraySchema))
+
+	// Should return error when multidimensional array/slice/array is bad
+	badMixedArr := [1][][0]string{}
+	schema, err = buildArrayOrSliceSchema(reflect.ValueOf(badMixedArr))
+
+	assert.EqualError(t, err, "Arrays must have length greater than 0", "should throw error when 0 length array passed")
+	assert.Nil(t, schema, "schema should be nil when sub array bad type")
+}
+
+func TestGetSchema(t *testing.T) {
+	// should return error if passed type not in basic types
+	schema, err := getSchema(reflect.TypeOf(complex128(1)))
+
+	assert.Nil(t, schema, "schema should be nil when erroring")
+	assert.EqualError(t, err, "complex128 was not a valid basic type", "should have returned correct error for bad type")
+
+	// should return schema for a basic type
+	testGetSchema(t, stringRefType, stringTypeVar.getSchema())
+	testGetSchema(t, boolRefType, boolTypeVar.getSchema())
+	testGetSchema(t, intRefType, intTypeVar.getSchema())
+	testGetSchema(t, int8RefType, int8TypeVar.getSchema())
+	testGetSchema(t, int16RefType, int16TypeVar.getSchema())
+	testGetSchema(t, int32RefType, int32TypeVar.getSchema())
+	testGetSchema(t, int64RefType, int64TypeVar.getSchema())
+	testGetSchema(t, uintRefType, uintTypeVar.getSchema())
+	testGetSchema(t, uint8RefType, uint8TypeVar.getSchema())
+	testGetSchema(t, uint16RefType, uint16TypeVar.getSchema())
+	testGetSchema(t, uint32RefType, uint32TypeVar.getSchema())
+	testGetSchema(t, uint64RefType, uint64TypeVar.getSchema())
+	testGetSchema(t, float32RefType, float32TypeVar.getSchema())
+	testGetSchema(t, float64RefType, float64TypeVar.getSchema())
+
+	// should return value returned by buildArraySchema when type is an array
+	stringArray := reflect.TypeOf([0]string{})
+	schema, err = getSchema(stringArray)
+	basSchema, basErr := buildArraySchema(reflect.New(stringArray).Elem())
+
+	assert.Equal(t, basSchema, schema, "schema should be same as buildArraySchema for array types")
+	assert.Equal(t, basErr, err, "error should be same as buildArraySchema for array types")
+
+	// should return value returned by buildArraySchema when type is an slice
+	complexSlice := reflect.TypeOf([]complex64{})
+	schema, err = getSchema(complexSlice)
+	bssSchema, bssErr := buildSliceSchema(reflect.MakeSlice(complexSlice, 1, 1))
+
+	assert.Equal(t, bssSchema, schema, "schema should be same as buildSliceSchema for array types")
+	assert.Equal(t, bssErr, err, "error should be same as buildSliceSchema for array types")
 }
 
 // ============== transaction_context.go ==============
@@ -1216,19 +1468,20 @@ func TestTypeIsValid(t *testing.T) {
 	assert.EqualError(t, typeIsValid(badSliceType, []reflect.Type{}), sliceOfValidType(badSlice).Error(), "should have returned error for invalid slice type")
 
 	// Should accept valid basic types
-	assert.Nil(t, typeIsValid(stringTypeVar.getType(), []reflect.Type{}), "should not return an error for a string type")
-	assert.Nil(t, typeIsValid(intTypeVar.getType(), []reflect.Type{}), "should not return an error for int type")
-	assert.Nil(t, typeIsValid(int8TypeVar.getType(), []reflect.Type{}), "should not return an error for int8 type")
-	assert.Nil(t, typeIsValid(int16TypeVar.getType(), []reflect.Type{}), "should not return an error for int16 type")
-	assert.Nil(t, typeIsValid(int32TypeVar.getType(), []reflect.Type{}), "should not return an error for int32 type")
-	assert.Nil(t, typeIsValid(int64TypeVar.getType(), []reflect.Type{}), "should not return an error for int64 type")
-	assert.Nil(t, typeIsValid(uintTypeVar.getType(), []reflect.Type{}), "should not return an error for uint type")
-	assert.Nil(t, typeIsValid(uint8TypeVar.getType(), []reflect.Type{}), "should not return an error for uint8 type")
-	assert.Nil(t, typeIsValid(uint16TypeVar.getType(), []reflect.Type{}), "should not return an error for uint16 type")
-	assert.Nil(t, typeIsValid(uint32TypeVar.getType(), []reflect.Type{}), "should not return an error for uint32 type")
-	assert.Nil(t, typeIsValid(uint64TypeVar.getType(), []reflect.Type{}), "should not return an error for uint64 type")
-	assert.Nil(t, typeIsValid(float32TypeVar.getType(), []reflect.Type{}), "should not return an error for float32 type")
-	assert.Nil(t, typeIsValid(float64TypeVar.getType(), []reflect.Type{}), "should not return an error for float64 type")
+	assert.Nil(t, typeIsValid(boolRefType, []reflect.Type{}), "should not return an error for a bool type")
+	assert.Nil(t, typeIsValid(stringRefType, []reflect.Type{}), "should not return an error for a string type")
+	assert.Nil(t, typeIsValid(intRefType, []reflect.Type{}), "should not return an error for int type")
+	assert.Nil(t, typeIsValid(int8RefType, []reflect.Type{}), "should not return an error for int8 type")
+	assert.Nil(t, typeIsValid(int16RefType, []reflect.Type{}), "should not return an error for int16 type")
+	assert.Nil(t, typeIsValid(int32RefType, []reflect.Type{}), "should not return an error for int32 type")
+	assert.Nil(t, typeIsValid(int64RefType, []reflect.Type{}), "should not return an error for int64 type")
+	assert.Nil(t, typeIsValid(uintRefType, []reflect.Type{}), "should not return an error for uint type")
+	assert.Nil(t, typeIsValid(uint8RefType, []reflect.Type{}), "should not return an error for uint8 type")
+	assert.Nil(t, typeIsValid(uint16RefType, []reflect.Type{}), "should not return an error for uint16 type")
+	assert.Nil(t, typeIsValid(uint32RefType, []reflect.Type{}), "should not return an error for uint32 type")
+	assert.Nil(t, typeIsValid(uint64RefType, []reflect.Type{}), "should not return an error for uint64 type")
+	assert.Nil(t, typeIsValid(float32RefType, []reflect.Type{}), "should not return an error for float32 type")
+	assert.Nil(t, typeIsValid(float64RefType, []reflect.Type{}), "should not return an error for float64 type")
 
 	// Should accept valid array
 	assert.Nil(t, typeIsValid(reflect.TypeOf([1]string{}), []reflect.Type{}), "should not return an error for a string array type")
@@ -1270,7 +1523,7 @@ func TestNewContractFunction(t *testing.T) {
 	cfParams.fields = []reflect.Type{}
 
 	cfReturns := contractFunctionReturns{}
-	cfReturns.success = stringTypeVar.getType()
+	cfReturns.success = stringRefType
 	cfReturns.error = true
 
 	cf := newContractFunction(fnValue, cfParams, cfReturns)
@@ -1418,9 +1671,9 @@ func TestGetArgs(t *testing.T) {
 
 	// Should return array using passed parameters when contract function takes same number of params as sent
 	setContractFunctionParams(&cf, nil, []reflect.Type{
-		basicTypes[reflect.String].getType(),
-		basicTypes[reflect.String].getType(),
-		basicTypes[reflect.String].getType(),
+		stringRefType,
+		stringRefType,
+		stringRefType,
 	})
 
 	values = callGetArgsAndBasicTest(t, cf, ctx, testParams)
@@ -1429,8 +1682,8 @@ func TestGetArgs(t *testing.T) {
 
 	// Should return array with first n passed params when contract function takes n params with n less than length of passed params
 	setContractFunctionParams(&cf, nil, []reflect.Type{
-		basicTypes[reflect.String].getType(),
-		basicTypes[reflect.String].getType(),
+		stringRefType,
+		stringRefType,
 	})
 
 	values = callGetArgsAndBasicTest(t, cf, ctx, testParams)
@@ -1439,10 +1692,10 @@ func TestGetArgs(t *testing.T) {
 
 	// Should return array with all passed params and bulked out when contract function takes n params with n greater than length of passed params for string
 	setContractFunctionParams(&cf, nil, []reflect.Type{
-		basicTypes[reflect.String].getType(),
-		basicTypes[reflect.String].getType(),
-		basicTypes[reflect.String].getType(),
-		basicTypes[reflect.String].getType(),
+		stringRefType,
+		stringRefType,
+		stringRefType,
+		stringRefType,
 	})
 
 	values = callGetArgsAndBasicTest(t, cf, ctx, testParams)
@@ -1451,9 +1704,9 @@ func TestGetArgs(t *testing.T) {
 
 	// Should return array with all passed params and bulked out when contract function takes n params with n greater than length of passed params for array
 	setContractFunctionParams(&cf, nil, []reflect.Type{
-		basicTypes[reflect.String].getType(),
-		basicTypes[reflect.String].getType(),
-		basicTypes[reflect.String].getType(),
+		stringRefType,
+		stringRefType,
+		stringRefType,
 		reflect.TypeOf([3]int{}),
 	})
 
@@ -1463,9 +1716,9 @@ func TestGetArgs(t *testing.T) {
 
 	// Should return array with all passed params and bulked out when contract function takes n params with n greater than length of passed params for slice
 	setContractFunctionParams(&cf, nil, []reflect.Type{
-		basicTypes[reflect.String].getType(),
-		basicTypes[reflect.String].getType(),
-		basicTypes[reflect.String].getType(),
+		stringRefType,
+		stringRefType,
+		stringRefType,
 		reflect.TypeOf([]string{}),
 	})
 
@@ -1484,9 +1737,9 @@ func TestGetArgs(t *testing.T) {
 
 	// Should include ctx in returned values and params when function takes in params and ctx
 	setContractFunctionParams(&cf, basicContextPtrType, []reflect.Type{
-		basicTypes[reflect.String].getType(),
-		basicTypes[reflect.String].getType(),
-		basicTypes[reflect.String].getType(),
+		stringRefType,
+		stringRefType,
+		stringRefType,
 	})
 
 	values = callGetArgsAndBasicTest(t, cf, ctx, testParams)
@@ -1513,7 +1766,7 @@ func TestGetArgs(t *testing.T) {
 
 	// Should handle bool
 	setContractFunctionParams(&cf, nil, []reflect.Type{
-		basicTypes[reflect.Bool].getType(),
+		boolRefType,
 	})
 
 	values = callGetArgsAndBasicTest(t, cf, ctx, []string{"true"})
@@ -1567,7 +1820,7 @@ func TestGetArgs(t *testing.T) {
 
 	// Should return an error if conversion errors
 	setContractFunctionParams(&cf, nil, []reflect.Type{
-		basicTypes[reflect.Int].getType(),
+		intRefType,
 	})
 
 	values, err = getArgs(cf, reflect.ValueOf(ctx), []string{"abc"})
@@ -1654,31 +1907,31 @@ func TestHandleContractFunctionResponse(t *testing.T) {
 	setContractFunctionReturns(&cf, nil, false)
 	assert.PanicsWithValue(t, "Response does not match expected return for given function.", func() { handleContractFunctionResponse([]reflect.Value{stringValue, errorValue}, cf) }, "should have panicked as response did not match the contractFunctions expected response format")
 
-	setContractFunctionReturns(&cf, stringTypeVar.getType(), false)
+	setContractFunctionReturns(&cf, stringRefType, false)
 	assert.PanicsWithValue(t, "Response does not match expected return for given function.", func() { handleContractFunctionResponse([]reflect.Value{stringValue, errorValue}, cf) }, "should have panicked as response did not match the contractFunctions expected response format")
 
 	setContractFunctionReturns(&cf, nil, true)
 	assert.PanicsWithValue(t, "Response does not match expected return for given function.", func() { handleContractFunctionResponse([]reflect.Value{stringValue, errorValue}, cf) }, "should have panicked as response did not match the contractFunctions expected response format")
 
-	setContractFunctionReturns(&cf, stringTypeVar.getType(), true)
+	setContractFunctionReturns(&cf, stringRefType, true)
 	assert.PanicsWithValue(t, "Response does not match expected return for given function.", func() { handleContractFunctionResponse([]reflect.Value{stringValue}, cf) }, "should have panicked as response did not match the contractFunctions expected response format")
 
-	setContractFunctionReturns(&cf, stringTypeVar.getType(), true)
+	setContractFunctionReturns(&cf, stringRefType, true)
 	assert.PanicsWithValue(t, "Response does not match expected return for given function.", func() { handleContractFunctionResponse([]reflect.Value{errorValue}, cf) }, "should have panicked as response did not match the contractFunctions expected response format")
 
-	setContractFunctionReturns(&cf, stringTypeVar.getType(), true)
+	setContractFunctionReturns(&cf, stringRefType, true)
 	assert.PanicsWithValue(t, "Response does not match expected return for given function.", func() { handleContractFunctionResponse([]reflect.Value{stringValue, stringValue, errorValue}, cf) }, "should have panicked as response did not match the contractFunctions expected response format")
 
-	setContractFunctionReturns(&cf, stringTypeVar.getType(), true)
+	setContractFunctionReturns(&cf, stringRefType, true)
 	assert.PanicsWithValue(t, "Response does not match expected return for given function.", func() { handleContractFunctionResponse([]reflect.Value{}, cf) }, "should have panicked as response did not match the contractFunctions expected response format")
 
 	// Should return string and nil error values when response contains string and nil error and expecting both
 	response = []reflect.Value{stringValue, nilErrorValue}
-	testHandleResponse(t, stringTypeVar.getType(), true, response, stringMsg, nil)
+	testHandleResponse(t, stringRefType, true, response, stringMsg, nil)
 
 	// Should return response string and nil for error when one value returned and expecting only string
 	response = []reflect.Value{stringValue}
-	testHandleResponse(t, stringTypeVar.getType(), false, response, stringMsg, nil)
+	testHandleResponse(t, stringRefType, false, response, stringMsg, nil)
 
 	// Should return blank string and response error when one value returned and expecting only error
 	response = []reflect.Value{errorValue}
@@ -1690,40 +1943,40 @@ func TestHandleContractFunctionResponse(t *testing.T) {
 
 	// Should return basic types in string form
 	response = []reflect.Value{reflect.ValueOf(1)}
-	testHandleResponse(t, intTypeVar.getType(), false, response, "1", nil)
+	testHandleResponse(t, intRefType, false, response, "1", nil)
 
 	response = []reflect.Value{reflect.ValueOf(int8(1))}
-	testHandleResponse(t, intTypeVar.getType(), false, response, "1", nil)
+	testHandleResponse(t, int8RefType, false, response, "1", nil)
 
 	response = []reflect.Value{reflect.ValueOf(int16(1))}
-	testHandleResponse(t, intTypeVar.getType(), false, response, "1", nil)
+	testHandleResponse(t, int16RefType, false, response, "1", nil)
 
 	response = []reflect.Value{reflect.ValueOf(int32(1))}
-	testHandleResponse(t, intTypeVar.getType(), false, response, "1", nil)
+	testHandleResponse(t, int32RefType, false, response, "1", nil)
 
 	response = []reflect.Value{reflect.ValueOf(int64(1))}
-	testHandleResponse(t, intTypeVar.getType(), false, response, "1", nil)
+	testHandleResponse(t, int64RefType, false, response, "1", nil)
 
 	response = []reflect.Value{reflect.ValueOf(uint(1))}
-	testHandleResponse(t, intTypeVar.getType(), false, response, "1", nil)
+	testHandleResponse(t, uintRefType, false, response, "1", nil)
 
 	response = []reflect.Value{reflect.ValueOf(uint8(1))}
-	testHandleResponse(t, intTypeVar.getType(), false, response, "1", nil)
+	testHandleResponse(t, uint8RefType, false, response, "1", nil)
 
 	response = []reflect.Value{reflect.ValueOf(uint16(1))}
-	testHandleResponse(t, intTypeVar.getType(), false, response, "1", nil)
+	testHandleResponse(t, uint16RefType, false, response, "1", nil)
 
 	response = []reflect.Value{reflect.ValueOf(uint32(1))}
-	testHandleResponse(t, intTypeVar.getType(), false, response, "1", nil)
+	testHandleResponse(t, uint32RefType, false, response, "1", nil)
 
 	response = []reflect.Value{reflect.ValueOf(uint64(1))}
-	testHandleResponse(t, intTypeVar.getType(), false, response, "1", nil)
+	testHandleResponse(t, uint64RefType, false, response, "1", nil)
 
 	response = []reflect.Value{reflect.ValueOf(float32(1.1))}
-	testHandleResponse(t, intTypeVar.getType(), false, response, "1.1", nil)
+	testHandleResponse(t, float32RefType, false, response, "1.1", nil)
 
 	response = []reflect.Value{reflect.ValueOf(float64(1.1))}
-	testHandleResponse(t, intTypeVar.getType(), false, response, "1.1", nil)
+	testHandleResponse(t, float64RefType, false, response, "1.1", nil)
 
 	// Should return array responses as JSON strings
 	intArray := [4]int{1, 2, 3, 4}
@@ -1971,77 +2224,178 @@ func TestGetMetadata(t *testing.T) {
 }
 
 // ============== metadata.go ==============
+func TestMetadataFunctionMarshalJSON(t *testing.T) {
+	var bytes []byte
+	var err error
+
+	var expectedJSONString string
+
+	mf := MetadataFunction{}
+	mf.Description = "some description"
+	mf.Consumes = []string{"oxygen"}
+	mf.Produces = []string{"carbon dioxide"}
+	mf.Schemes = []string{"to take over the world"}
+	mf.Tags = []string{"tube trains"}
+	mf.Summary = "a brief overview"
+	mf.TransactionID = "ABC123"
+	mf.Deprecated = true
+
+	// Should generate expected JSON when return is empty
+	expectedJSONString = "{\"consumes\":[\"oxygen\"],\"deprecated\":true,\"description\":\"some description\",\"transactionId\":\"ABC123\",\"produces\":[\"carbon dioxide\"],\"schemes\":[\"to take over the world\"],\"summary\":\"a brief overview\",\"tags\":[\"tube trains\"]}"
+
+	bytes, err = json.Marshal(mf)
+	assert.Nil(t, err, "should not have returned error for valid marshalling")
+
+	compareJSON(t, bytes, []byte(expectedJSONString))
+
+	// Should generate expected JSON when return exists
+	expectedJSONString = "{\"consumes\":[\"oxygen\"],\"deprecated\":true,\"description\":\"some description\",\"transactionId\":\"ABC123\",\"produces\":[\"carbon dioxide\"],\"return\":[{\"type\":\"object\",\"name\":\"success\",\"in\":\"body\",\"schema\":{\"type\":\"number\",\"format\":\"double\"}}],\"schemes\":[\"to take over the world\"],\"summary\":\"a brief overview\",\"tags\":[\"tube trains\"]}"
+
+	mf.Return = []spec.Parameter{
+		*(spec.BodyParam("success", float64TypeVar.getSchema())),
+	}
+
+	bytes, err = json.Marshal(mf)
+	assert.Nil(t, err, "should not have returned error for valid marshalling")
+
+	compareJSON(t, bytes, []byte(expectedJSONString))
+}
+
 func TestGenerateMetadata(t *testing.T) {
 	cc := contractChaincode{}
 
-	someFunctionMetadata := MetadataFunction{
-		[]MetadataParam{},
-		[]string{},
+	complexType := reflect.TypeOf(complex64(1))
+
+	var getSchemaErr error
+
+	// Should panic if get schema panics
+	someBadFunctionContractFunction := new(contractFunction)
+	someBadFunctionContractFunction.params = contractFunctionParams{
+		basicContextPtrType,
+		[]reflect.Type{stringRefType, complexType},
 	}
+	bcFuncs := make(map[string]*contractFunction)
+	bcFuncs["BadFunction"] = someBadFunctionContractFunction
+	bcccn := contractChaincodeNamespace{
+		bcFuncs, nil, nil, nil, nil, nil,
+	}
+
+	cc.contracts = map[string]contractChaincodeNamespace{
+		"": bcccn,
+	}
+
+	_, getSchemaErr = getSchema(complexType)
+
+	assert.PanicsWithValue(t, fmt.Sprintf("Failed to generate metadata. Invalid function parameter type. %s", getSchemaErr), func() { generateMetadata(cc) }, "should have panicked with bad contract function params")
+
+	// Should panic if get schema panics
+	anotherBadFunctionContractFunction := new(contractFunction)
+	anotherBadFunctionContractFunction.params = contractFunctionParams{
+		basicContextPtrType,
+		[]reflect.Type{stringRefType},
+	}
+	anotherBadFunctionContractFunction.returns = contractFunctionReturns{}
+	anotherBadFunctionContractFunction.returns.success = complexType
+	abcFuncs := make(map[string]*contractFunction)
+	abcFuncs["AnotherBadFunction"] = anotherBadFunctionContractFunction
+	abcccn := contractChaincodeNamespace{
+		abcFuncs, nil, nil, nil, nil, nil,
+	}
+
+	cc.contracts = map[string]contractChaincodeNamespace{
+		"": abcccn,
+	}
+
+	_, getSchemaErr = getSchema(complexType)
+
+	assert.PanicsWithValue(t, fmt.Sprintf("Failed to generate metadata. Invalid function success return type. %s", getSchemaErr), func() { generateMetadata(cc) }, "should have panicked with bad contract function success return")
+
+	// setup for not panicking tests
+
+	ctxSchema := new(spec.Schema)
+	ctxSchema.Typed("object", "*contractapi.TransactionContext")
+
+	errorSchema := new(spec.Schema)
+	errorSchema.Typed("object", "error")
+
+	basicContextAsSpecParam := spec.Parameter{}
+	basicContextAsSpecParam.Name = "ctx"
+	basicContextAsSpecParam.Type = "object"
+	basicContextAsSpecParam.In = "body"
+	basicContextAsSpecParam.Schema = ctxSchema
 
 	someFunctionContractFunction := new(contractFunction)
 
-	someOtherFunctionMetadata := MetadataFunction{
-		[]MetadataParam{
-			{"ctx", basicContextPtrType.String()},
-			{"param0", "string"},
-			{"param1", "int"},
-		},
-		[]string{"float64", "error"},
-	}
+	someFunctionMetadata := MetadataFunction{}
+	someFunctionMetadata.TransactionID = "SomeFunction"
 
-	someOtherFunctionContractFunction := new(contractFunction)
-	someOtherFunctionContractFunction.params = contractFunctionParams{
+	anotherFunctionContractFunction := new(contractFunction)
+	anotherFunctionContractFunction.params = contractFunctionParams{
 		basicContextPtrType,
-		[]reflect.Type{stringTypeVar.getType(), intTypeVar.getType()},
+		[]reflect.Type{stringRefType, intRefType},
 	}
-	someOtherFunctionContractFunction.returns = contractFunctionReturns{
-		float64TypeVar.getType(),
+	anotherFunctionContractFunction.returns = contractFunctionReturns{
+		float64RefType,
 		true,
 	}
+
+	anotherFunctionMetadata := MetadataFunction{}
+	anotherFunctionMetadata.Parameters = []spec.Parameter{
+		basicContextAsSpecParam,
+		*(spec.BodyParam("param0", stringTypeVar.getSchema())),
+		*(spec.BodyParam("param1", intTypeVar.getSchema())),
+	}
+	anotherFunctionMetadata.Return = []spec.Parameter{
+		*(spec.BodyParam("success", float64TypeVar.getSchema())),
+		*(spec.BodyParam("error", errorSchema)),
+	}
+	anotherFunctionMetadata.TransactionID = "AnotherFunction"
 
 	var expectedMetadata MetadataContractChaincode
 
 	scFuncs := make(map[string]*contractFunction)
-	scFuncs["SomeFunction"] = new(contractFunction)
+	scFuncs["SomeFunction"] = someFunctionContractFunction
 	scccn := contractChaincodeNamespace{
 		scFuncs, nil, nil, nil, nil, nil,
 	}
 
-	scMetadataFunctions := make(map[string]MetadataFunction)
-	scMetadataFunctions["SomeFunction"] = someFunctionMetadata
-
 	cscFuncs := make(map[string]*contractFunction)
 	cscFuncs["SomeFunction"] = someFunctionContractFunction
 
-	cscFuncs["SomeOtherFunction"] = someOtherFunctionContractFunction
+	cscFuncs["AnotherFunction"] = anotherFunctionContractFunction
 	cscccn := contractChaincodeNamespace{
 		cscFuncs, nil, nil, nil, nil, nil,
 	}
-
-	cscMetadataFunctions := make(map[string]MetadataFunction)
-	cscMetadataFunctions["SomeFunction"] = someFunctionMetadata
-	cscMetadataFunctions["SomeOtherFunction"] = someOtherFunctionMetadata
 
 	// Should handle generating metadata for a single namespace with default namespacing
 	cc.contracts = map[string]contractChaincodeNamespace{
 		"": scccn,
 	}
 	expectedMetadata = MetadataContractChaincode{}
-	expectedMetadata.Namespaces = make(map[string]MetadataNamespace)
-	expectedMetadata.Namespaces[""] = MetadataNamespace{
-		scMetadataFunctions,
+	expectedMetadata.Contracts = []MetadataContract{
+		MetadataContract{
+			Namespace: "",
+			Transactions: []MetadataFunction{
+				someFunctionMetadata,
+			},
+		},
 	}
+
 	testMetadata(t, generateMetadata(cc), expectedMetadata)
 
-	// Should handle generating metadata for a single namespace with custom namespace
+	// Should handle generating metadata for a single namespace with custom namespace and order functions alphabetically on ID
 	cc.contracts = map[string]contractChaincodeNamespace{
 		"customnamespace": cscccn,
 	}
 	expectedMetadata = MetadataContractChaincode{}
-	expectedMetadata.Namespaces = make(map[string]MetadataNamespace)
-	expectedMetadata.Namespaces["customnamespace"] = MetadataNamespace{
-		cscMetadataFunctions,
+	expectedMetadata.Contracts = []MetadataContract{
+		MetadataContract{
+			Namespace: "customnamespace",
+			Transactions: []MetadataFunction{
+				anotherFunctionMetadata,
+				someFunctionMetadata,
+			},
+		},
 	}
 	testMetadata(t, generateMetadata(cc), expectedMetadata)
 
@@ -2051,12 +2405,43 @@ func TestGenerateMetadata(t *testing.T) {
 		"customnamespace": cscccn,
 	}
 	expectedMetadata = MetadataContractChaincode{}
-	expectedMetadata.Namespaces = make(map[string]MetadataNamespace)
-	expectedMetadata.Namespaces[""] = MetadataNamespace{
-		scMetadataFunctions,
+	expectedMetadata.Contracts = []MetadataContract{
+		MetadataContract{
+			Namespace: "",
+			Transactions: []MetadataFunction{
+				someFunctionMetadata,
+			},
+		},
+		MetadataContract{
+			Namespace: "customnamespace",
+			Transactions: []MetadataFunction{
+				anotherFunctionMetadata,
+				someFunctionMetadata,
+			},
+		},
 	}
-	expectedMetadata.Namespaces["customnamespace"] = MetadataNamespace{
-		cscMetadataFunctions,
+	testMetadata(t, generateMetadata(cc), expectedMetadata)
+
+	// Should sort the contracts by alphabetical order on their namespace
+	cc.contracts = map[string]contractChaincodeNamespace{
+		"somenamespace":   scccn,
+		"customnamespace": cscccn,
+	}
+	expectedMetadata = MetadataContractChaincode{}
+	expectedMetadata.Contracts = []MetadataContract{
+		MetadataContract{
+			Namespace: "customnamespace",
+			Transactions: []MetadataFunction{
+				anotherFunctionMetadata,
+				someFunctionMetadata,
+			},
+		},
+		MetadataContract{
+			Namespace: "somenamespace",
+			Transactions: []MetadataFunction{
+				someFunctionMetadata,
+			},
+		},
 	}
 	testMetadata(t, generateMetadata(cc), expectedMetadata)
 }

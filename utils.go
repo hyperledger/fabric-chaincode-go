@@ -18,8 +18,11 @@ package contractapi
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/go-openapi/spec"
 )
 
 func stringInSlice(a string, list []string) bool {
@@ -70,7 +73,7 @@ func embedsStruct(sc interface{}, toEmbed string) bool {
 // Types
 type basicType interface {
 	convert(string) (reflect.Value, error)
-	getType() reflect.Type
+	getSchema() *spec.Schema
 }
 
 type stringType struct{}
@@ -79,13 +82,13 @@ func (st *stringType) convert(value string) (reflect.Value, error) {
 	return reflect.ValueOf(value), nil
 }
 
-func (st *stringType) getType() reflect.Type {
-	return reflect.TypeOf("")
+func (st *stringType) getSchema() *spec.Schema {
+	return spec.StringProperty()
 }
 
 type boolType struct{}
 
-func (st *boolType) convert(value string) (reflect.Value, error) {
+func (bt *boolType) convert(value string) (reflect.Value, error) {
 	var boolVal bool
 	var err error
 	if value != "" {
@@ -99,13 +102,13 @@ func (st *boolType) convert(value string) (reflect.Value, error) {
 	return reflect.ValueOf(boolVal), nil
 }
 
-func (st *boolType) getType() reflect.Type {
-	return reflect.TypeOf(true)
+func (bt *boolType) getSchema() *spec.Schema {
+	return spec.BoolProperty()
 }
 
 type intType struct{}
 
-func (st *intType) convert(value string) (reflect.Value, error) {
+func (it *intType) convert(value string) (reflect.Value, error) {
 	var intVal int
 	var err error
 	if value != "" {
@@ -119,8 +122,8 @@ func (st *intType) convert(value string) (reflect.Value, error) {
 	return reflect.ValueOf(intVal), nil
 }
 
-func (st *intType) getType() reflect.Type {
-	return reflect.TypeOf(1)
+func (it *intType) getSchema() *spec.Schema {
+	return spec.Int64Property()
 }
 
 type int8Type struct{}
@@ -140,8 +143,8 @@ func (it *int8Type) convert(value string) (reflect.Value, error) {
 	return reflect.ValueOf(intVal), nil
 }
 
-func (it *int8Type) getType() reflect.Type {
-	return reflect.TypeOf(int8(1))
+func (it *int8Type) getSchema() *spec.Schema {
+	return spec.Int8Property()
 }
 
 type int16Type struct{}
@@ -161,8 +164,8 @@ func (it *int16Type) convert(value string) (reflect.Value, error) {
 	return reflect.ValueOf(intVal), nil
 }
 
-func (it *int16Type) getType() reflect.Type {
-	return reflect.TypeOf(int16(1))
+func (it *int16Type) getSchema() *spec.Schema {
+	return spec.Int16Property()
 }
 
 type int32Type struct{}
@@ -182,8 +185,8 @@ func (it *int32Type) convert(value string) (reflect.Value, error) {
 	return reflect.ValueOf(intVal), nil
 }
 
-func (it *int32Type) getType() reflect.Type {
-	return reflect.TypeOf(int32(1))
+func (it *int32Type) getSchema() *spec.Schema {
+	return spec.Int32Property()
 }
 
 type int64Type struct{}
@@ -202,8 +205,8 @@ func (it *int64Type) convert(value string) (reflect.Value, error) {
 	return reflect.ValueOf(intVal), nil
 }
 
-func (it *int64Type) getType() reflect.Type {
-	return reflect.TypeOf(int64(1))
+func (it *int64Type) getSchema() *spec.Schema {
+	return spec.Int64Property()
 }
 
 type uintType struct{}
@@ -223,8 +226,8 @@ func (ut *uintType) convert(value string) (reflect.Value, error) {
 	return reflect.ValueOf(uintVal), nil
 }
 
-func (ut *uintType) getType() reflect.Type {
-	return reflect.TypeOf(uint(1))
+func (ut *uintType) getSchema() *spec.Schema {
+	return spec.Int64Property()
 }
 
 type uint8Type struct{}
@@ -244,8 +247,8 @@ func (ut *uint8Type) convert(value string) (reflect.Value, error) {
 	return reflect.ValueOf(uintVal), nil
 }
 
-func (ut *uint8Type) getType() reflect.Type {
-	return reflect.TypeOf(uint8(1))
+func (ut *uint8Type) getSchema() *spec.Schema {
+	return spec.Int8Property()
 }
 
 type uint16Type struct{}
@@ -265,8 +268,8 @@ func (ut *uint16Type) convert(value string) (reflect.Value, error) {
 	return reflect.ValueOf(uintVal), nil
 }
 
-func (ut *uint16Type) getType() reflect.Type {
-	return reflect.TypeOf(uint16(1))
+func (ut *uint16Type) getSchema() *spec.Schema {
+	return spec.Int16Property()
 }
 
 type uint32Type struct{}
@@ -286,8 +289,8 @@ func (ut *uint32Type) convert(value string) (reflect.Value, error) {
 	return reflect.ValueOf(uintVal), nil
 }
 
-func (ut *uint32Type) getType() reflect.Type {
-	return reflect.TypeOf(uint32(1))
+func (ut *uint32Type) getSchema() *spec.Schema {
+	return spec.Int32Property()
 }
 
 type uint64Type struct{}
@@ -306,8 +309,8 @@ func (ut *uint64Type) convert(value string) (reflect.Value, error) {
 	return reflect.ValueOf(uintVal), nil
 }
 
-func (ut *uint64Type) getType() reflect.Type {
-	return reflect.TypeOf(uint64(1))
+func (ut *uint64Type) getSchema() *spec.Schema {
+	return spec.Int64Property()
 }
 
 type float32Type struct{}
@@ -327,8 +330,8 @@ func (ft *float32Type) convert(value string) (reflect.Value, error) {
 	return reflect.ValueOf(floatVal), nil
 }
 
-func (ft *float32Type) getType() reflect.Type {
-	return reflect.TypeOf(float32(1))
+func (ft *float32Type) getSchema() *spec.Schema {
+	return spec.Float32Property()
 }
 
 type float64Type struct{}
@@ -347,6 +350,87 @@ func (ft *float64Type) convert(value string) (reflect.Value, error) {
 	return reflect.ValueOf(floatVal), nil
 }
 
-func (ft *float64Type) getType() reflect.Type {
-	return reflect.TypeOf(float64(1))
+func (ft *float64Type) getSchema() *spec.Schema {
+	return spec.Float64Property()
+}
+
+var basicTypes = map[reflect.Kind]basicType{
+	reflect.Bool:    new(boolType),
+	reflect.Float32: new(float32Type),
+	reflect.Float64: new(float64Type),
+	reflect.Int:     new(intType),
+	reflect.Int8:    new(int8Type),
+	reflect.Int16:   new(int16Type),
+	reflect.Int32:   new(int32Type),
+	reflect.Int64:   new(int64Type),
+	reflect.String:  new(stringType),
+	reflect.Uint:    new(uintType),
+	reflect.Uint8:   new(uint8Type),
+	reflect.Uint16:  new(uint16Type),
+	reflect.Uint32:  new(uint32Type),
+	reflect.Uint64:  new(uint64Type),
+}
+
+func listBasicTypes() string {
+	types := []string{}
+
+	for el := range basicTypes {
+		types = append(types, el.String())
+	}
+	sort.Strings(types)
+
+	return sliceAsCommaSentence(types)
+}
+
+func buildArraySchema(array reflect.Value) (*spec.Schema, error) {
+	if array.Len() < 1 {
+		return nil, fmt.Errorf("Arrays must have length greater than 0")
+	}
+
+	return buildArrayOrSliceSchema(array)
+}
+
+func buildSliceSchema(slice reflect.Value) (*spec.Schema, error) {
+	if slice.Len() < 1 {
+		slice = reflect.MakeSlice(slice.Type(), 1, 10)
+	}
+
+	return buildArrayOrSliceSchema(slice)
+}
+
+func buildArrayOrSliceSchema(obj reflect.Value) (*spec.Schema, error) {
+	if obj.Index(0).Kind() == reflect.Array {
+		schema, err := buildArraySchema(obj.Index(0))
+
+		if err != nil {
+			return nil, err
+		}
+
+		return spec.ArrayProperty(schema), nil
+	} else if obj.Index(0).Kind() == reflect.Slice {
+		schema, err := buildSliceSchema(obj.Index(0))
+
+		if err != nil {
+			return nil, err
+		}
+
+		return spec.ArrayProperty(schema), nil
+	} else if _, ok := basicTypes[obj.Index(0).Kind()]; !ok {
+		return nil, fmt.Errorf("Slices/Arrays can only have base types %s. Slice/Array has basic type %s", listBasicTypes(), obj.Index(0).Kind().String())
+	}
+	return spec.ArrayProperty(basicTypes[obj.Index(0).Kind()].getSchema()), nil
+}
+
+func getSchema(field reflect.Type) (*spec.Schema, error) {
+	if bt, ok := basicTypes[field.Kind()]; !ok {
+		if field.Kind() == reflect.Array {
+			return buildArraySchema(reflect.New(field).Elem())
+		} else if field.Kind() == reflect.Slice {
+			return buildSliceSchema(reflect.MakeSlice(field, 1, 1))
+		} else {
+			return nil, fmt.Errorf("%s was not a valid basic type", field.String())
+		}
+	} else {
+		return bt.getSchema(), nil
+	}
 }

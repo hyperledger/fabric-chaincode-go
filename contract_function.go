@@ -11,13 +11,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package contractapi
 
 import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"sort"
 )
 
 type contractFunctionParams struct {
@@ -53,34 +53,6 @@ func (cf contractFunction) exists() bool {
 		return true
 	}
 	return false
-}
-
-var basicTypes = map[reflect.Kind]basicType{
-	reflect.Bool:    new(boolType),
-	reflect.Float32: new(float32Type),
-	reflect.Float64: new(float64Type),
-	reflect.Int:     new(intType),
-	reflect.Int8:    new(int8Type),
-	reflect.Int16:   new(int16Type),
-	reflect.Int32:   new(int32Type),
-	reflect.Int64:   new(int64Type),
-	reflect.String:  new(stringType),
-	reflect.Uint:    new(uintType),
-	reflect.Uint8:   new(uint8Type),
-	reflect.Uint16:  new(uint16Type),
-	reflect.Uint32:  new(uint32Type),
-	reflect.Uint64:  new(uint64Type),
-}
-
-func listBasicTypes() string {
-	types := []string{}
-
-	for el := range basicTypes {
-		types = append(types, el.String())
-	}
-	sort.Strings(types)
-
-	return sliceAsCommaSentence(types)
 }
 
 func arrayOfValidType(array reflect.Value) error {

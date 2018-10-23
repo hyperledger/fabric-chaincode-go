@@ -15,82 +15,119 @@
 package contractapi
 
 import (
-	"encoding/json"
 	"fmt"
+	"sort"
+
+	"github.com/go-openapi/spec"
+
+	"encoding/json"
 )
 
-// MetadataParam contains details about a parameter for a function
-// storing the param name and type
-type MetadataParam struct {
-	Name     string `json:"name"`
-	DataType string `json:"dataType"`
-}
-
-// MetadataFunction contains details on the parameters a
-// function takes and the types it returns
+// MetadataFunction stores details of a contract function
 type MetadataFunction struct {
-	Params  []MetadataParam `json:"params"`
-	Returns []string        `json:"returns"`
+	spec.OperationProps
+	TransactionID string           `json:"transactionId"`
+	Return        []spec.Parameter `json:"return"`
 }
 
-// MetadataNamespace stores details of the transactions that exist
-// for a namespace
-type MetadataNamespace struct {
-	Transactions map[string]MetadataFunction `json:"transactions"`
+// MarshalJSON custom handling of JSON marshall as OperationProps
+// removes added fields
+func (mf MetadataFunction) MarshalJSON() ([]byte, error) {
+	mfMap := make(map[string]interface{})
+
+	bytes, _ := json.Marshal(mf.OperationProps)
+
+	json.Unmarshal(bytes, &mfMap)
+
+	if len(mf.Return) != 0 {
+		mfMap["return"] = mf.Return
+	}
+
+	mfMap["transactionId"] = mf.TransactionID
+
+	return json.Marshal(mfMap)
+}
+
+// MetadataContract stores details of a contract
+type MetadataContract struct {
+	spec.InfoProps
+	Namespace    string             `json:"namespace"`
+	Transactions []MetadataFunction `json:"transactions"`
 }
 
 // MetadataContractChaincode stores details for a chaincode. Contains
-// all namespaces of the chaincode and details of those namespaces
+// all contracts of the chaincode and details of those contracts
 type MetadataContractChaincode struct {
-	Namespaces map[string]MetadataNamespace `json:"namespaces"`
+	Contracts []MetadataContract `json:"contracts"`
 }
 
 func generateMetadata(cc contractChaincode) string {
 
 	sscc := new(MetadataContractChaincode)
-	sscc.Namespaces = make(map[string]MetadataNamespace)
+	sscc.Contracts = []MetadataContract{}
 
 	for key := range cc.contracts {
 		metadata := cc.contracts[key]
-		simpNS := MetadataNamespace{}
-		simpNS.Transactions = make(map[string]MetadataFunction)
+		simpNS := MetadataContract{}
+		simpNS.Namespace = key
+		simpNS.Transactions = []MetadataFunction{}
 
 		for key := range metadata.functions {
 			fn := metadata.functions[key]
 			metaFunc := MetadataFunction{}
-			metaFunc.Params = []MetadataParam{}
-			metaFunc.Returns = []string{}
+			metaFunc.TransactionID = key
 
 			if fn.params.context != nil {
-				param := MetadataParam{
-					"ctx",
-					fn.params.context.String(),
-				}
-				metaFunc.Params = append(metaFunc.Params, param)
+				schema := new(spec.Schema)
+				schema.Typed("object", fn.params.context.String())
+
+				param := spec.BodyParam("ctx", schema)
+				metaFunc.Parameters = append(metaFunc.Parameters, *param)
 			}
 
 			for index, field := range fn.params.fields {
-				param := MetadataParam{
-					fmt.Sprintf("param%d", index),
-					field.String(),
+				schema, err := getSchema(field)
+
+				if err != nil {
+					panic(fmt.Sprintf("Failed to generate metadata. Invalid function parameter type. %s", err))
 				}
-				metaFunc.Params = append(metaFunc.Params, param)
+
+				param := spec.BodyParam(fmt.Sprintf("param%d", index), schema)
+				metaFunc.Parameters = append(metaFunc.Parameters, *param)
 			}
 
 			if fn.returns.success != nil {
-				metaFunc.Returns = append(metaFunc.Returns, fn.returns.success.String())
+				schema, err := getSchema(fn.returns.success)
+
+				if err != nil {
+					panic(fmt.Sprintf("Failed to generate metadata. Invalid function success return type. %s", err))
+				}
+
+				param := spec.BodyParam("success", schema)
+				metaFunc.Return = append(metaFunc.Return, *param)
 			}
 
 			if fn.returns.error {
-				metaFunc.Returns = append(metaFunc.Returns, "error")
+				schema := new(spec.Schema)
+				schema.Typed("object", "error")
+				param := spec.BodyParam("error", schema)
+
+				metaFunc.Return = append(metaFunc.Return, *param)
 			}
 
-			simpNS.Transactions[key] = metaFunc
-
+			simpNS.Transactions = append(simpNS.Transactions, metaFunc)
 		}
 
-		sscc.Namespaces[key] = simpNS
+		sort.Slice(simpNS.Transactions, func(i, j int) bool {
+			return simpNS.Transactions[i].TransactionID < simpNS.Transactions[j].TransactionID
+		})
+
+		sscc.Contracts = append(sscc.Contracts, simpNS)
 	}
+
+	sort.Slice(sscc.Contracts, func(i, j int) bool {
+		return sscc.Contracts[i].Namespace < sscc.Contracts[j].Namespace
+	})
 
 	ssccJSON, _ := json.Marshal(sscc)
 
