@@ -15,74 +15,256 @@
 package contractapi
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
-
-	"github.com/go-openapi/spec"
-
-	"encoding/json"
 )
 
-// MetadataFunction stores details of a contract function
-type MetadataFunction struct {
-	spec.OperationProps
-	TransactionID string           `json:"transactionId"`
-	Return        []spec.Parameter `json:"return"`
+// LicenseMetadata details for the license of the chaincode
+type LicenseMetadata struct {
+	Name string `json:"name"`
+	URL  string `json:"url,omitempty"`
 }
 
-// MarshalJSON custom handling of JSON marshall as OperationProps
-// removes added fields
-func (mf MetadataFunction) MarshalJSON() ([]byte, error) {
-	mfMap := make(map[string]interface{})
+// ContactMetadata information for owners of the chaincode
+type ContactMetadata struct {
+	Email string `json:"email,omitempty"`
+	Name  string `json:"name,omitempty"`
+	URL   string `json:"url,omitempty"`
+}
 
-	bytes, _ := json.Marshal(mf.OperationProps)
+// InfoMetadata general information about the API.
+type InfoMetadata struct {
+	Contact        *ContactMetadata `json:"contact,omitempty"`
+	Description    string           `json:"description,omitempty"`
+	License        *LicenseMetadata `json:"license,omitempty"`
+	TermsOfService string           `json:"termsOfService,omitempty"`
+	Title          string           `json:"title"`
+	Version        string           `json:"version"`
+}
 
-	json.Unmarshal(bytes, &mfMap)
+// SchemaOrBoolean represents a schema or boolean value
+type SchemaOrBoolean struct {
+	Boolean bool
+	Schema  *Schema
+}
 
-	if len(mf.Return) != 0 {
-		mfMap["return"] = mf.Return
+// MarshalJSON if Schema not nil returns boolean value as bytes else JSON bytes for Schema
+func (s SchemaOrBoolean) MarshalJSON() ([]byte, error) {
+	if s.Schema == nil {
+		return json.Marshal(s.Boolean)
 	}
 
-	mfMap["transactionId"] = mf.TransactionID
-
-	return json.Marshal(mfMap)
+	return json.Marshal(s.Schema)
 }
 
-// MetadataContract stores details of a contract
-type MetadataContract struct {
-	spec.InfoProps
-	Namespace    string             `json:"namespace"`
-	Transactions []MetadataFunction `json:"transactions"`
+// UnmarshalJSON converts JSON back into SchemaOrBoolean
+func (s *SchemaOrBoolean) UnmarshalJSON(data []byte) error {
+	var schema Schema
+
+	err := json.Unmarshal(data, &schema)
+
+	if err == nil {
+		s.Schema = &schema
+		return nil
+	}
+
+	var iface interface{}
+
+	err = json.Unmarshal(data, &iface)
+
+	if err != nil {
+		return err
+	}
+
+	boo, ok := iface.(bool)
+
+	if !ok {
+		return errors.New("Can only unmarshal to SchemaOrBoolean if value is boolean or Schema format")
+	}
+
+	s.Boolean = boo
+
+	return nil
 }
 
-// MetadataContractChaincode stores details for a chaincode. Contains
-// all contracts of the chaincode and details of those contracts
-type MetadataContractChaincode struct {
-	Contracts []MetadataContract `json:"contracts"`
+// SchemaOrArray represents a schema or an array of schemas
+type SchemaOrArray struct {
+	Schema      *Schema
+	SchemaArray []*Schema
+}
+
+// MarshalJSON if Schema not nil returns Schema value as bytes else JSON bytes for SchemaArray
+func (s SchemaOrArray) MarshalJSON() ([]byte, error) {
+	if s.Schema == nil {
+		return json.Marshal(s.SchemaArray)
+	}
+
+	return json.Marshal(s.Schema)
+}
+
+// UnmarshalJSON converts JSON back into SchemaOrArray
+func (s *SchemaOrArray) UnmarshalJSON(data []byte) error {
+	var schema Schema
+
+	err := json.Unmarshal(data, &schema)
+
+	if err == nil {
+		s.Schema = &schema
+		return nil
+	}
+
+	var iface []*Schema
+
+	err = json.Unmarshal(data, &iface)
+
+	if err != nil {
+		return errors.New("Can only unmarshal to SchemaOrArray if value is Schema format or array of Schema formats")
+	}
+
+	s.SchemaArray = iface
+
+	return nil
+}
+
+// StringOrArray represents a string or an array of strings
+type StringOrArray []string
+
+// MarshalJSON converts single string in array to just string as JSON else JSON array for more than 1
+func (s StringOrArray) MarshalJSON() ([]byte, error) {
+	if len(s) == 1 {
+		return json.Marshal([]string(s)[0])
+	}
+	return json.Marshal([]string(s))
+}
+
+// UnmarshalJSON converts JSON array/string to StringOrArray object
+func (s *StringOrArray) UnmarshalJSON(data []byte) error {
+
+	var arr []string
+
+	err := json.Unmarshal(data, &arr)
+
+	if err == nil {
+		*s = StringOrArray(arr)
+		return nil
+	}
+
+	var iface interface{}
+
+	err = json.Unmarshal(data, &iface)
+
+	if err != nil {
+		return err
+	}
+
+	str, ok := iface.(string)
+
+	if !ok {
+		return errors.New("Can only unmarshal to StringOrArray if value is []string or string")
+	}
+
+	*s = []string{str}
+
+	return nil
+}
+
+// Schema a deterministic version of a JSON Schema object.
+type Schema struct {
+	AdditionalProperties *SchemaOrBoolean   `json:"additionalProperties,omitempty"`
+	AllOf                []*Schema          `json:"allOf,omitempty"`
+	Default              interface{}        `json:"default,omitempty"`
+	Description          string             `json:"description,omitempty"`
+	Discriminator        string             `json:"discriminator,omitempty"`
+	Enum                 []interface{}      `json:"enum,omitempty"`
+	Example              interface{}        `json:"example,omitempty"`
+	ExclusiveMaximum     bool               `json:"exclusiveMaximum,omitempty"`
+	ExclusiveMinimum     bool               `json:"exclusiveMinimum,omitempty"`
+	Format               string             `json:"format,omitempty"`
+	Items                *SchemaOrArray     `json:"items,omitempty"`
+	MaxItems             uint               `json:"maxItems,omitempty"`
+	MaxLength            uint               `json:"maxLength,omitempty"`
+	MaxProperties        uint               `json:"maxProperties,omitempty"`
+	Maximum              float64            `json:"maximum,omitempty"`
+	MinItems             uint               `json:"minItems,omitempty"`
+	MinLength            uint               `json:"minLength,omitempty"`
+	MinProperties        uint               `json:"minProperties,omitempty"`
+	Minimum              float64            `json:"minimum,omitempty"`
+	MultipleOf           float64            `json:"multipleOf,omitempty"`
+	Pattern              string             `json:"pattern,omitempty"`
+	Properties           map[string]*Schema `json:"properties,omitempty"`
+	ReadOnly             bool               `json:"readOnly,omitempty"`
+	Ref                  string             `json:"$ref,omitempty"`
+	Required             []string           `json:"required,omitempty"`
+	Title                string             `json:"title,omitempty"`
+	Type                 StringOrArray      `json:"type,omitempty"`
+	UniqueItems          bool               `json:"uniqueItems,omitempty"`
+}
+
+// ParameterMetadata details about a parameter used for a transaction
+type ParameterMetadata struct {
+	Description string `json:"description,omitempty"`
+	Name        string `json:"name"`
+	Required    bool   `json:"required,omitempty"`
+	Schema      Schema `json:"schema"`
+}
+
+// TransactionMetadata contains information on what makes up a transaction
+type TransactionMetadata struct {
+	Parameters    []ParameterMetadata `json:"parameters,omitempty"`
+	Returns       []ParameterMetadata `json:"returns,omitempty"`
+	Tag           []string            `json:"tag,omitempty"`
+	TransactionID string              `json:"transactionId"`
+}
+
+// ContractMetadata contains information about what makes up a contract
+type ContractMetadata struct {
+	Info         InfoMetadata          `json:"info,omitempty"`
+	Namespace    string                `json:"namespace"`
+	Transactions []TransactionMetadata `json:"transactions"`
+}
+
+// AssetMetadata description of an asset
+type AssetMetadata struct {
+	Name       string              `json:"name"`
+	Properties []ParameterMetadata `json:"properties"`
+}
+
+// ComponentMetadata does something
+type ComponentMetadata struct {
+	Schemas map[string]AssetMetadata `json:"schemas,omitempty"`
+}
+
+// ContractChaincodeMetadata describes a chaincode made using the contractapi
+type ContractChaincodeMetadata struct {
+	Info       InfoMetadata       `json:"info,omitempty"`
+	Contracts  []ContractMetadata `json:"contracts"`
+	Components ComponentMetadata  `json:"components"`
 }
 
 func generateMetadata(cc contractChaincode) string {
+	ccMetadata := new(ContractChaincodeMetadata)
 
-	sscc := new(MetadataContractChaincode)
-	sscc.Contracts = []MetadataContract{}
+	for key, contract := range cc.contracts {
+		contractMetadata := ContractMetadata{}
+		contractMetadata.Namespace = key
 
-	for key := range cc.contracts {
-		metadata := cc.contracts[key]
-		simpNS := MetadataContract{}
-		simpNS.Namespace = key
-		simpNS.Transactions = []MetadataFunction{}
-
-		for key := range metadata.functions {
-			fn := metadata.functions[key]
-			metaFunc := MetadataFunction{}
-			metaFunc.TransactionID = key
+		for key, fn := range contract.functions {
+			transactionMetadata := TransactionMetadata{}
+			transactionMetadata.TransactionID = key
 
 			if fn.params.context != nil {
-				schema := new(spec.Schema)
-				schema.Typed("object", fn.params.context.String())
+				schema := Schema{}
+				schema.Type = []string{"object"}
+				schema.Format = fn.params.context.String()
 
-				param := spec.BodyParam("ctx", schema)
-				metaFunc.Parameters = append(metaFunc.Parameters, *param)
+				param := ParameterMetadata{}
+				param.Name = "ctx"
+				param.Required = true
+				param.Schema = schema
+
+				transactionMetadata.Parameters = append(transactionMetadata.Parameters, param)
 			}
 
 			for index, field := range fn.params.fields {
@@ -92,8 +274,12 @@ func generateMetadata(cc contractChaincode) string {
 					panic(fmt.Sprintf("Failed to generate metadata. Invalid function parameter type. %s", err))
 				}
 
-				param := spec.BodyParam(fmt.Sprintf("param%d", index), schema)
-				metaFunc.Parameters = append(metaFunc.Parameters, *param)
+				param := ParameterMetadata{}
+				param.Name = fmt.Sprintf("param%d", index)
+				param.Required = true
+				param.Schema = *schema
+
+				transactionMetadata.Parameters = append(transactionMetadata.Parameters, param)
 			}
 
 			if fn.returns.success != nil {
@@ -103,33 +289,42 @@ func generateMetadata(cc contractChaincode) string {
 					panic(fmt.Sprintf("Failed to generate metadata. Invalid function success return type. %s", err))
 				}
 
-				param := spec.BodyParam("success", schema)
-				metaFunc.Return = append(metaFunc.Return, *param)
+				param := ParameterMetadata{}
+				param.Name = "success"
+				param.Schema = *schema
+
+				transactionMetadata.Returns = append(transactionMetadata.Returns, param)
 			}
 
 			if fn.returns.error {
-				schema := new(spec.Schema)
-				schema.Typed("object", "error")
-				param := spec.BodyParam("error", schema)
+				schema := Schema{}
+				schema.Type = []string{"object"}
+				schema.Format = "error"
 
-				metaFunc.Return = append(metaFunc.Return, *param)
+				param := ParameterMetadata{}
+				param.Name = "error"
+				param.Schema = schema
+
+				transactionMetadata.Returns = append(transactionMetadata.Returns, param)
 			}
 
-			simpNS.Transactions = append(simpNS.Transactions, metaFunc)
+			contractMetadata.Transactions = append(contractMetadata.Transactions, transactionMetadata)
 		}
 
-		sort.Slice(simpNS.Transactions, func(i, j int) bool {
-			return simpNS.Transactions[i].TransactionID < simpNS.Transactions[j].TransactionID
+		sort.Slice(contractMetadata.Transactions, func(i, j int) bool {
+			return contractMetadata.Transactions[i].TransactionID < contractMetadata.Transactions[j].TransactionID
 		})
 
-		sscc.Contracts = append(sscc.Contracts, simpNS)
+		ccMetadata.Contracts = append(ccMetadata.Contracts, contractMetadata)
 	}
 
-	sort.Slice(sscc.Contracts, func(i, j int) bool {
-		return sscc.Contracts[i].Namespace < sscc.Contracts[j].Namespace
+	sort.Slice(ccMetadata.Contracts, func(i, j int) bool {
+		return ccMetadata.Contracts[i].Namespace < ccMetadata.Contracts[j].Namespace
 	})
 
-	ssccJSON, _ := json.Marshal(sscc)
+	ccMetadataJSON, _ := json.Marshal(ccMetadata)
 
-	return string(ssccJSON)
+	// TODO SERIALIZE TYPE IN SCHEMA SO IF ONE ELEMENT ITS NOT AN ARRAY. SEE HOW GO-OPENAPI DO IT
+
+	return string(ccMetadataJSON)
 }
