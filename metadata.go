@@ -18,8 +18,383 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"sort"
+	"strconv"
+
+	"github.com/hyperledger/fabric/core/chaincode/shim"
+	"github.com/xeipuuv/gojsonschema"
 )
+
+const metadataFolder = "contract-metadata"
+const metadataFile = "metadata.json"
+
+var logger = shim.NewLogger("contractapi/metadata.go")
+
+// Helper for OS testing
+type osExc interface {
+	Executable() (string, error)
+}
+
+type osExcStr struct{}
+
+func (o osExcStr) Executable() (string, error) {
+	return os.Executable()
+}
+
+var osHelper osExc = osExcStr{}
+
+// GetJSONSchema returns the JSON schema used for metadata
+func GetJSONSchema() string {
+	return `{
+		"$schema": "http://json-schema.org/draft-04/schema#",
+		"$id": "http://example.com/root.json",
+		"type": "object",
+		"title": "Hyperledger Fabric Contract Definition JSON Schema",
+		"required": [
+			"info",
+			"contracts"
+		],
+		"properties": {
+			"info": {
+				"$ref": "#/definitions/info"
+			},
+			"contracts": {
+				"type": "array",
+				"items": {
+					"$ref": "#/definitions/contract"
+				}
+			},
+			"components": {
+				"$ref": "#/definitions/components"
+			}
+		},
+		"definitions": {
+			"info": {
+				"type": "object",
+				"description": "General information about the API.",
+				"required": [
+					"version",
+					"title"
+				],
+				"properties": {
+					"title": {
+						"type": "string",
+						"description": "A unique and precise title of the API."
+					},
+					"version": {
+						"type": "string",
+						"description": "A semantic version number of the API."
+					},
+					"description": {
+						"type": "string",
+						"description": "A longer description of the API. Should be different from the title.  GitHub Flavored Markdown is allowed."
+					},
+					"termsOfService": {
+						"type": "string",
+						"description": "The terms of service for the API."
+					},
+					"contact": {
+						"$ref": "#/definitions/contact"
+					},
+					"license": {
+						"$ref": "#/definitions/license"
+					}
+				}
+			},
+			"contact": {
+				"type": "object",
+				"description": "Contact information for the owners of the API.",
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "The identifying name of the contact person/organization."
+					},
+					"url": {
+						"type": "string",
+						"description": "The URL pointing to the contact information.",
+						"format": "uri"
+					},
+					"email": {
+						"type": "string",
+						"description": "The email address of the contact person/organization.",
+						"format": "email"
+					}
+				}
+			},
+			"license": {
+				"type": "object",
+				"required": [
+					"name"
+				],
+				"additionalProperties": false,
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "The name of the license type. It's encouraged to use an OSI compatible license."
+					},
+					"url": {
+						"type": "string",
+						"description": "The URL pointing to the license.",
+						"format": "uri"
+					}
+				}
+			},
+			"contract": {
+				"type": "object",
+				"description": "",
+				"required": [
+					"namespace",
+					"transactions"
+				],
+				"properties": {
+					"info": {
+						"$ref": "#/definitions/info"
+					},
+					"namespace": {
+						"type": "string",
+						"description": "A unique and precise title of the API."
+					},
+					"transactions": {
+						"type": "array",
+						"items": {
+							"$ref": "#/definitions/transaction"
+						}
+					}
+				}
+			},
+			"asset": {
+				"type": "object",
+				"description": "A complex type used in a domain",
+				"required": [
+					"name",
+					"properties"
+				],
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"properties": {
+						"$ref": "#/definitions/parametersList"
+					}
+				}
+			},
+			"parametersList": {
+				"type": "array",
+				"description": "The parameters needed to send a valid API call.",
+				"additionalItems": false,
+				"items": {
+					"oneOf": [
+						{
+							"$ref": "#/definitions/parameter"
+						},
+						{
+							"$ref": "#/definitions/jsonReference"
+						}
+					]
+				},
+				"uniqueItems": true
+			},
+			"transaction": {
+				"type": "object",
+				"description": "single transaction specification",
+				"required": [
+					"transactionId"
+				],
+				"properties": {
+					"transactionId": {
+						"type": "string",
+						"description": "name of the transaction "
+					},
+					"tag": {
+						"type": "array",
+						"items": {
+							"type": "string",
+							"desciprition": "free format tags"
+						}
+					},
+					"parameters": {
+						"$ref": "#/definitions/parametersList"
+					},
+					"returns": {
+						"$ref": "#/definitions/parametersList"
+					}
+				}
+			},
+			"parameter": {
+				"type": "object",
+				"required": [
+					"name",
+					"schema"
+				],
+				"properties": {
+					"description": {
+						"type": "string",
+						"description": "A brief description of the parameter. This could contain examples of use.  GitHub Flavored Markdown is allowed."
+					},
+					"name": {
+						"type": "string",
+						"description": "The name of the parameter."
+					},
+					"required": {
+						"type": "boolean",
+						"description": "Determines whether or not this parameter is required or optional.",
+						"default": false
+					},
+					"schema": {
+						"$ref": "#/definitions/schema"
+					}
+				},
+				"additionalProperties": false
+			},
+			"jsonReference": {
+				"type": "object",
+				"required": [
+					"$ref"
+				],
+				"additionalProperties": false,
+				"properties": {
+					"$ref": {
+						"type": "string"
+					}
+				}
+			},
+			"schema": {
+				"type": "object",
+				"description": "A deterministic version of a JSON Schema object.",
+				"properties": {
+					"$ref": {
+						"type": "string"
+					},
+					"format": {
+						"type": "string"
+					},
+					"title": {
+						"$ref": "http://json-schema.org/draft-04/schema#/properties/title"
+					},
+					"description": {
+						"$ref": "http://json-schema.org/draft-04/schema#/properties/description"
+					},
+					"default": {
+						"$ref": "http://json-schema.org/draft-04/schema#/properties/default"
+					},
+					"multipleOf": {
+						"$ref": "http://json-schema.org/draft-04/schema#/properties/multipleOf"
+					},
+					"maximum": {
+						"$ref": "http://json-schema.org/draft-04/schema#/properties/maximum"
+					},
+					"exclusiveMaximum": {
+						"$ref": "http://json-schema.org/draft-04/schema#/properties/exclusiveMaximum"
+					},
+					"minimum": {
+						"$ref": "http://json-schema.org/draft-04/schema#/properties/minimum"
+					},
+					"exclusiveMinimum": {
+						"$ref": "http://json-schema.org/draft-04/schema#/properties/exclusiveMinimum"
+					},
+					"maxLength": {
+						"$ref": "http://json-schema.org/draft-04/schema#/definitions/positiveInteger"
+					},
+					"minLength": {
+						"$ref": "http://json-schema.org/draft-04/schema#/definitions/positiveIntegerDefault0"
+					},
+					"pattern": {
+						"$ref": "http://json-schema.org/draft-04/schema#/properties/pattern"
+					},
+					"maxItems": {
+						"$ref": "http://json-schema.org/draft-04/schema#/definitions/positiveInteger"
+					},
+					"minItems": {
+						"$ref": "http://json-schema.org/draft-04/schema#/definitions/positiveIntegerDefault0"
+					},
+					"uniqueItems": {
+						"$ref": "http://json-schema.org/draft-04/schema#/properties/uniqueItems"
+					},
+					"maxProperties": {
+						"$ref": "http://json-schema.org/draft-04/schema#/definitions/positiveInteger"
+					},
+					"minProperties": {
+						"$ref": "http://json-schema.org/draft-04/schema#/definitions/positiveIntegerDefault0"
+					},
+					"required": {
+						"$ref": "http://json-schema.org/draft-04/schema#/definitions/stringArray"
+					},
+					"enum": {
+						"$ref": "http://json-schema.org/draft-04/schema#/properties/enum"
+					},
+					"additionalProperties": {
+						"anyOf": [
+							{
+								"$ref": "#/definitions/schema"
+							},
+							{
+								"type": "boolean"
+							}
+						],
+						"default": {}
+					},
+					"type": {
+						"$ref": "http://json-schema.org/draft-04/schema#/properties/type"
+					},
+					"items": {
+						"anyOf": [
+							{
+								"$ref": "#/definitions/schema"
+							},
+							{
+								"type": "array",
+								"minItems": 1,
+								"items": {
+									"$ref": "#/definitions/schema"
+								}
+							}
+						],
+						"default": {}
+					},
+					"allOf": {
+						"type": "array",
+						"minItems": 1,
+						"items": {
+							"$ref": "#/definitions/schema"
+						}
+					},
+					"properties": {
+						"type": "object",
+						"additionalProperties": {
+							"$ref": "#/definitions/schema"
+						},
+						"default": {}
+					},
+					"discriminator": {
+						"type": "string"
+					},
+					"readOnly": {
+						"type": "boolean",
+						"default": false
+					},
+					"example": {}
+				},
+				"additionalProperties": false
+			},
+			"components": {
+				"type": "object",
+				"properties": {
+					"schemas": {
+						"type": "object",
+						"patternProperties": {
+							"^.*$": {
+								"$ref": "#/definitions/asset"
+							}
+						}
+					}
+				}
+			}
+		}
+	}`
+}
 
 // LicenseMetadata details for the license of the chaincode
 type LicenseMetadata struct {
@@ -246,85 +621,118 @@ type ContractChaincodeMetadata struct {
 func generateMetadata(cc contractChaincode) string {
 	ccMetadata := new(ContractChaincodeMetadata)
 
-	for key, contract := range cc.contracts {
-		contractMetadata := ContractMetadata{}
-		contractMetadata.Namespace = key
+	ex, execErr := osHelper.Executable()
+	if execErr != nil {
+		logger.Error(fmt.Sprintf("Error finding location of running executable. Defaulting to Reflected metadata. %s", execErr.Error()))
 
-		for key, fn := range contract.functions {
-			transactionMetadata := TransactionMetadata{}
-			transactionMetadata.TransactionID = key
+	}
+	exPath := filepath.Dir(ex)
 
-			if fn.params.context != nil {
-				schema := Schema{}
-				schema.Type = []string{"object"}
-				schema.Format = fn.params.context.String()
+	metadataPath := filepath.Join(exPath, metadataFolder, metadataFile)
 
-				param := ParameterMetadata{}
-				param.Name = "ctx"
-				param.Required = true
-				param.Schema = schema
+	_, err := os.Stat(metadataPath)
 
-				transactionMetadata.Parameters = append(transactionMetadata.Parameters, param)
-			}
+	if execErr != nil || os.IsNotExist(err) {
+		for key, contract := range cc.contracts {
+			contractMetadata := ContractMetadata{}
+			contractMetadata.Namespace = key
 
-			for index, field := range fn.params.fields {
-				schema, err := getSchema(field)
+			for key, fn := range contract.functions {
+				transactionMetadata := TransactionMetadata{}
+				transactionMetadata.TransactionID = key
 
-				if err != nil {
-					panic(fmt.Sprintf("Failed to generate metadata. Invalid function parameter type. %s", err))
+				if fn.params.context != nil {
+					schema := Schema{}
+					schema.Type = []string{"object"}
+					schema.Format = fn.params.context.String()
+
+					param := ParameterMetadata{}
+					param.Name = "ctx"
+					param.Required = true
+					param.Schema = schema
+
+					transactionMetadata.Parameters = append(transactionMetadata.Parameters, param)
 				}
 
-				param := ParameterMetadata{}
-				param.Name = fmt.Sprintf("param%d", index)
-				param.Required = true
-				param.Schema = *schema
+				for index, field := range fn.params.fields {
+					schema, err := getSchema(field)
 
-				transactionMetadata.Parameters = append(transactionMetadata.Parameters, param)
-			}
+					if err != nil {
+						panic(fmt.Sprintf("Failed to generate metadata. Invalid function parameter type. %s", err))
+					}
 
-			if fn.returns.success != nil {
-				schema, err := getSchema(fn.returns.success)
+					param := ParameterMetadata{}
+					param.Name = fmt.Sprintf("param%d", index)
+					param.Required = true
+					param.Schema = *schema
 
-				if err != nil {
-					panic(fmt.Sprintf("Failed to generate metadata. Invalid function success return type. %s", err))
+					transactionMetadata.Parameters = append(transactionMetadata.Parameters, param)
 				}
 
-				param := ParameterMetadata{}
-				param.Name = "success"
-				param.Schema = *schema
+				if fn.returns.success != nil {
+					schema, err := getSchema(fn.returns.success)
 
-				transactionMetadata.Returns = append(transactionMetadata.Returns, param)
+					if err != nil {
+						panic(fmt.Sprintf("Failed to generate metadata. Invalid function success return type. %s", err))
+					}
+
+					param := ParameterMetadata{}
+					param.Name = "success"
+					param.Schema = *schema
+
+					transactionMetadata.Returns = append(transactionMetadata.Returns, param)
+				}
+
+				if fn.returns.error {
+					schema := Schema{}
+					schema.Type = []string{"object"}
+					schema.Format = "error"
+
+					param := ParameterMetadata{}
+					param.Name = "error"
+					param.Schema = schema
+
+					transactionMetadata.Returns = append(transactionMetadata.Returns, param)
+				}
+
+				contractMetadata.Transactions = append(contractMetadata.Transactions, transactionMetadata)
 			}
 
-			if fn.returns.error {
-				schema := Schema{}
-				schema.Type = []string{"object"}
-				schema.Format = "error"
+			sort.Slice(contractMetadata.Transactions, func(i, j int) bool {
+				return contractMetadata.Transactions[i].TransactionID < contractMetadata.Transactions[j].TransactionID
+			})
 
-				param := ParameterMetadata{}
-				param.Name = "error"
-				param.Schema = schema
-
-				transactionMetadata.Returns = append(transactionMetadata.Returns, param)
-			}
-
-			contractMetadata.Transactions = append(contractMetadata.Transactions, transactionMetadata)
+			ccMetadata.Contracts = append(ccMetadata.Contracts, contractMetadata)
 		}
 
-		sort.Slice(contractMetadata.Transactions, func(i, j int) bool {
-			return contractMetadata.Transactions[i].TransactionID < contractMetadata.Transactions[j].TransactionID
+		sort.Slice(ccMetadata.Contracts, func(i, j int) bool {
+			return ccMetadata.Contracts[i].Namespace < ccMetadata.Contracts[j].Namespace
 		})
+	} else {
+		metadataBytes, err := ioutil.ReadFile(metadataPath)
 
-		ccMetadata.Contracts = append(ccMetadata.Contracts, contractMetadata)
+		if err != nil {
+			panic(fmt.Sprintf("Failed to generate metadata. Could not read file %s. %s", metadataPath, err))
+		}
+
+		schemaLoader := gojsonschema.NewBytesLoader([]byte(GetJSONSchema()))
+		metadataLoader := gojsonschema.NewBytesLoader(metadataBytes)
+
+		result, _ := gojsonschema.Validate(schemaLoader, metadataLoader)
+
+		if !result.Valid() {
+			var errors string
+
+			for index, desc := range result.Errors() {
+				errors = errors + "\n" + strconv.Itoa(index+1) + ".\t" + desc.String()
+			}
+
+			panic(fmt.Sprintf("Failed to generate metadata. Given file did not match schema: %s", errors))
+		}
+
+		json.Unmarshal(metadataBytes, ccMetadata)
 	}
-
-	sort.Slice(ccMetadata.Contracts, func(i, j int) bool {
-		return ccMetadata.Contracts[i].Namespace < ccMetadata.Contracts[j].Namespace
-	})
-
 	ccMetadataJSON, _ := json.Marshal(ccMetadata)
-
-	// TODO SERIALIZE TYPE IN SCHEMA SO IF ONE ELEMENT ITS NOT AN ARRAY. SEE HOW GO-OPENAPI DO IT
 
 	return string(ccMetadataJSON)
 }

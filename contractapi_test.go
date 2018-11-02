@@ -17,7 +17,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strconv"
@@ -26,6 +29,7 @@ import (
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	"github.com/hyperledger/fabric/protos/peer"
 	"github.com/stretchr/testify/assert"
+	"github.com/xeipuuv/gojsonschema"
 )
 
 const standardAssetID = "ABC123"
@@ -76,6 +80,12 @@ var float32RefType = reflect.TypeOf(float32(1.0))
 var float64RefType = reflect.TypeOf(1.0)
 
 var standardExtras = []string{"Extra1", "Extra2"}
+
+type osExcTestStr struct{}
+
+func (o osExcTestStr) Executable() (string, error) {
+	return "", errors.New("some error")
+}
 
 func testConvertError(t *testing.T, bt basicType, toPass string, expectedType string) {
 	t.Helper()
@@ -697,6 +707,28 @@ func compareJSON(t *testing.T, actual []byte, expected []byte) {
 	}
 
 	assert.Equal(t, actualMap, expectedMap, "JSONs to compare should have been equal")
+}
+
+func createMetadataJSONFile(data []byte, permissions os.FileMode) string {
+	ex, _ := os.Executable()
+	exPath := filepath.Dir(ex)
+
+	folderPath := filepath.Join(exPath, metadataFolder)
+	filePath := filepath.Join(folderPath, metadataFile)
+
+	os.Mkdir(folderPath, os.ModePerm)
+	ioutil.WriteFile(filePath, data, permissions)
+
+	return filePath
+}
+
+func cleanupMetadataJSONFile() {
+	ex, _ := os.Executable()
+	exPath := filepath.Dir(ex)
+
+	folderPath := filepath.Join(exPath, metadataFolder)
+
+	os.RemoveAll(folderPath)
 }
 
 func testMetadata(t *testing.T, metadata string, expectedMetadata ContractChaincodeMetadata) {
@@ -2362,6 +2394,13 @@ func TestGetMetadata(t *testing.T) {
 }
 
 // ============== metadata.go ==============
+func TestGetJSONSchema(t *testing.T) {
+	schemaLoader := gojsonschema.NewBytesLoader([]byte(GetJSONSchema()))
+	_, err := gojsonschema.NewSchema(schemaLoader)
+
+	assert.Nil(t, err, "value returned by GetJSONSchema should be a valid JSON schema")
+}
+
 func TestSchemaOrBooleanMarshalJSON(t *testing.T) {
 	var sob SchemaOrBoolean
 	var marshalBytes []byte
@@ -2575,6 +2614,48 @@ func TestStringOrArrayUnmarshalJSON(t *testing.T) {
 func TestGenerateMetadata(t *testing.T) {
 	cc := contractChaincode{}
 
+	// ============================
+	// metadata file tests
+	// ============================
+
+	var filepath string
+	var metadataBytes []byte
+
+	// Should panic when cannot read file but it exists
+	filepath = createMetadataJSONFile([]byte("some file contents"), 0000)
+	_, readfileErr := ioutil.ReadFile(filepath)
+	assert.PanicsWithValue(t, fmt.Sprintf("Failed to generate metadata. Could not read file %s. %s", filepath, readfileErr), func() { generateMetadata(cc) }, "should panic when cannot read file but it exists")
+	cleanupMetadataJSONFile()
+
+	// should panic when file does not match schema
+	metadataBytes = []byte("{\"some\":\"json\"}")
+
+	filepath = createMetadataJSONFile(metadataBytes, os.ModePerm)
+	schemaLoader := gojsonschema.NewBytesLoader([]byte(GetJSONSchema()))
+	metadataLoader := gojsonschema.NewBytesLoader(metadataBytes)
+
+	result, _ := gojsonschema.Validate(schemaLoader, metadataLoader)
+
+	var errors string
+
+	for index, desc := range result.Errors() {
+		errors = errors + "\n" + strconv.Itoa(index+1) + ".\t" + desc.String()
+	}
+
+	assert.PanicsWithValue(t, fmt.Sprintf("Failed to generate metadata. Given file did not match schema: %s", errors), func() { generateMetadata(cc) }, "should panic when file does not meet schema")
+	cleanupMetadataJSONFile()
+
+	// should use metadata file data
+	metadataBytes = []byte("{\"info\":{\"title\":\"my contract\",\"version\":\"0.0.1\"},\"contracts\":[],\"components\":{}}")
+
+	filepath = createMetadataJSONFile(metadataBytes, os.ModePerm)
+	assert.Equal(t, string(metadataBytes), generateMetadata(cc), "should return metadata from file")
+	cleanupMetadataJSONFile()
+
+	// ============================
+	// Non metadata file tests
+	// ============================
+
 	complexType := reflect.TypeOf(complex64(1))
 
 	var getSchemaErr error
@@ -2775,6 +2856,33 @@ func TestGenerateMetadata(t *testing.T) {
 		},
 	}
 	testMetadata(t, generateMetadata(cc), expectedMetadata)
+
+	// Should use reflected metadata when getting executable location fails
+
+	oldOsHelper := osHelper
+	osHelper = osExcTestStr{}
+
+	metadataBytes = []byte("{\"info\":{\"title\":\"my contract\",\"version\":\"0.0.1\"},\"contracts\":[],\"components\":{}}")
+
+	filepath = createMetadataJSONFile(metadataBytes, os.ModePerm)
+
+	cc.contracts = map[string]contractChaincodeNamespace{
+		"customnamespace": cscccn,
+	}
+	expectedMetadata = ContractChaincodeMetadata{}
+	expectedMetadata.Contracts = []ContractMetadata{
+		ContractMetadata{
+			Namespace: "customnamespace",
+			Transactions: []TransactionMetadata{
+				anotherFunctionMetadata,
+				someFunctionMetadata,
+			},
+		},
+	}
+	testMetadata(t, generateMetadata(cc), expectedMetadata)
+
+	cleanupMetadataJSONFile()
+	osHelper = oldOsHelper
 }
 
 // ============== contract_chaincode_helpers.go ==============
