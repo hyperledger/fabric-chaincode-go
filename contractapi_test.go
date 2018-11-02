@@ -2994,6 +2994,12 @@ func TestCreateNewChaincode(t *testing.T) {
 }
 
 func TestInit(t *testing.T) {
+	// Should just return when no function name passed
+	cc := convertC2CC()
+	mockStub := shim.NewMockStub("blank fcn", cc)
+	assert.Equal(t, shim.Success([]byte("Default initiator successful.")), cc.Init(mockStub), "should just return success on init with no function passed")
+
+	// Should call via invoke
 	testCallingContractFunctions(t, initType)
 }
 

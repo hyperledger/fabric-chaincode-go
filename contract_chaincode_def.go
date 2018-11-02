@@ -56,6 +56,11 @@ func CreateNewChaincode(contracts ...ContractInterface) error {
 // has been established for the first time, passes off details of the request to Invoke
 // for handling the request.
 func (cc *contractChaincode) Init(stub shim.ChaincodeStubInterface) peer.Response {
+	nsFcn, _ := stub.GetFunctionAndParameters()
+	if nsFcn == "" {
+		return shim.Success([]byte("Default initiator successful."))
+	}
+
 	return cc.Invoke(stub)
 }
 

@@ -219,7 +219,14 @@ func GetJSONSchema() string {
 						"$ref": "#/definitions/parametersList"
 					},
 					"returns": {
-						"$ref": "#/definitions/parametersList"
+						"oneOf": [
+							{
+								"$ref": "#/definitions/parameter"
+							},
+							{
+								"$ref": "#/definitions/parametersList"
+							}
+						]
 					}
 				}
 			},
