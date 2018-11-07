@@ -54,7 +54,7 @@ func CreateNewChaincode(contracts ...ContractInterface) error {
 
 // Init is called during Instantiate transaction after the chaincode container
 // has been established for the first time, passes off details of the request to Invoke
-// for handling the request.
+// for handling the request if a function name is passed, otherwise returns shim.Success
 func (cc *contractChaincode) Init(stub shim.ChaincodeStubInterface) peer.Response {
 	nsFcn, _ := stub.GetFunctionAndParameters()
 	if nsFcn == "" {
