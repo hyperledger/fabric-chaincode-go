@@ -648,19 +648,6 @@ func generateMetadata(cc contractChaincode) string {
 				transactionMetadata := TransactionMetadata{}
 				transactionMetadata.TransactionID = key
 
-				if fn.params.context != nil {
-					schema := Schema{}
-					schema.Type = []string{"object"}
-					schema.Format = fn.params.context.String()
-
-					param := ParameterMetadata{}
-					param.Name = "ctx"
-					param.Required = true
-					param.Schema = schema
-
-					transactionMetadata.Parameters = append(transactionMetadata.Parameters, param)
-				}
-
 				for index, field := range fn.params.fields {
 					schema, err := getSchema(field)
 

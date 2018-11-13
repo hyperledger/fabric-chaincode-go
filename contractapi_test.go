@@ -2704,18 +2704,9 @@ func TestGenerateMetadata(t *testing.T) {
 
 	// setup for not panicking tests
 
-	ctxSchema := Schema{}
-	ctxSchema.Type = []string{"object"}
-	ctxSchema.Format = "*contractapi.TransactionContext"
-
 	errorSchema := Schema{}
 	errorSchema.Type = []string{"object"}
 	errorSchema.Format = "error"
-
-	basicContextAsParam := ParameterMetadata{}
-	basicContextAsParam.Name = "ctx"
-	basicContextAsParam.Required = true
-	basicContextAsParam.Schema = ctxSchema
 
 	someFunctionContractFunction := new(contractFunction)
 
@@ -2744,7 +2735,6 @@ func TestGenerateMetadata(t *testing.T) {
 
 	anotherFunctionMetadata := TransactionMetadata{}
 	anotherFunctionMetadata.Parameters = []ParameterMetadata{
-		basicContextAsParam,
 		param0AsParam,
 		param1AsParam,
 	}
