@@ -625,7 +625,7 @@ type ContractChaincodeMetadata struct {
 	Components ComponentMetadata  `json:"components"`
 }
 
-func generateMetadata(cc contractChaincode) string {
+func generateMetadata(cc ContractChaincode) string {
 	ccMetadata := new(ContractChaincodeMetadata)
 
 	ex, execErr := osHelper.Executable()

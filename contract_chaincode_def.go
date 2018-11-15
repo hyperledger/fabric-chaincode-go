@@ -32,7 +32,8 @@ type contractChaincodeNamespace struct {
 	transactionContextPtrHandler reflect.Type
 }
 
-type contractChaincode struct {
+// ContractChaincode a struct to meet the chaincode interface and provide routing of calls to contracts
+type ContractChaincode struct {
 	contracts map[string]contractChaincodeNamespace
 }
 
@@ -55,7 +56,7 @@ func CreateNewChaincode(contracts ...ContractInterface) error {
 // Init is called during Instantiate transaction after the chaincode container
 // has been established for the first time, passes off details of the request to Invoke
 // for handling the request if a function name is passed, otherwise returns shim.Success
-func (cc *contractChaincode) Init(stub shim.ChaincodeStubInterface) peer.Response {
+func (cc *ContractChaincode) Init(stub shim.ChaincodeStubInterface) peer.Response {
 	nsFcn, _ := stub.GetFunctionAndParameters()
 	if nsFcn == "" {
 		return shim.Success([]byte("Default initiator successful."))
@@ -81,7 +82,7 @@ func (cc *contractChaincode) Init(stub shim.ChaincodeStubInterface) peer.Respons
 // unknown function names being passed or the named function returning an error then the after function
 // if defined is not called. The same transaction context is passed as a pointer to before, after, named
 // and unknown functions on each Invoke.
-func (cc *contractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Response {
+func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Response {
 	nsFcn, params := stub.GetFunctionAndParameters()
 
 	li := strings.LastIndex(nsFcn, ":")
@@ -154,7 +155,7 @@ func (cc *contractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 	return shim.Success([]byte(successReturn))
 }
 
-func (cc *contractChaincode) addContract(contract ContractInterface, excludeFuncs []string) {
+func (cc *ContractChaincode) addContract(contract ContractInterface, excludeFuncs []string) {
 	ns := contract.GetNamespace()
 
 	if _, ok := cc.contracts[ns]; ok {
