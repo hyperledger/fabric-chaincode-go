@@ -742,7 +742,7 @@ func testMetadata(t *testing.T, metadata string, expectedMetadata ContractChainc
 	assert.Equal(t, expectedMetadata, contractChaincodeMetadata, "Should match expected metadata")
 }
 
-func testcontractChaincodeNamespaceRepresentsContract(t *testing.T, ccns contractChaincodeNamespace, contract simpleTestContract) {
+func testContractChaincodeContractRepresentsContract(t *testing.T, ccns contractChaincodeContract, contract simpleTestContract) {
 	t.Helper()
 
 	assert.Equal(t, len(expectedSimpleContractFuncs), len(ccns.functions), "should only have one function as simpleTestContract")
@@ -813,34 +813,34 @@ func testConvertCC(t *testing.T, testData []simpleTestContract) {
 	errorMetadata.Schema = errorSchema
 
 	simpleContractFunctionMetadata := TransactionMetadata{}
-	simpleContractFunctionMetadata.TransactionID = "DoSomething"
+	simpleContractFunctionMetadata.Name = "DoSomething"
 	simpleContractFunctionMetadata.Returns = []ParameterMetadata{successMetadata, errorMetadata}
 
 	// Test that the data set for each contract in chaincode is correct e.g. unknown fn set etc
 	for i := 0; i < len(testData); i++ {
 		contract := testData[i]
-		ns := contract.GetNamespace()
+		ns := contract.GetName()
 
 		nsContract, ok := cc.contracts[ns]
 
 		contractMetadata := ContractMetadata{}
-		contractMetadata.Namespace = ns
+		contractMetadata.Name = ns
 		contractMetadata.Transactions = []TransactionMetadata{
 			simpleContractFunctionMetadata,
 		}
 
 		expectedSysMetadata.Contracts = append(expectedSysMetadata.Contracts, contractMetadata)
 
-		assert.True(t, ok, "should have namespace in map of contracts")
+		assert.True(t, ok, "should have name in map of contracts")
 
 		// simpleTestContract should only have 1 function DoSomething
 		assert.Equal(t, 1, len(nsContract.functions), "should have same number of functions as a simpleTestContract")
 
-		testcontractChaincodeNamespaceRepresentsContract(t, nsContract, contract)
+		testContractChaincodeContractRepresentsContract(t, nsContract, contract)
 	}
 
 	// should have system contract
-	sysContract, ok := cc.contracts[SystemContractNamespace]
+	sysContract, ok := cc.contracts[SystemContractName]
 
 	assert.True(t, ok, "should have added a system contract with other contracts")
 
@@ -849,13 +849,13 @@ func testConvertCC(t *testing.T, testData []simpleTestContract) {
 	assert.True(t, ok, "should have GetMetadata for system contract")
 
 	systemContractFunctionMetadata := TransactionMetadata{}
-	systemContractFunctionMetadata.TransactionID = "GetMetadata"
+	systemContractFunctionMetadata.Name = "GetMetadata"
 	systemContractFunctionMetadata.Returns = []ParameterMetadata{
 		successMetadata,
 	}
 
 	systemContractMetadata := ContractMetadata{}
-	systemContractMetadata.Namespace = SystemContractNamespace
+	systemContractMetadata.Name = SystemContractName
 	systemContractMetadata.Transactions = []TransactionMetadata{
 		systemContractFunctionMetadata,
 	}
@@ -914,22 +914,22 @@ func testCallingContractFunctions(t *testing.T, callType string) {
 
 	cc := convertC2CC()
 
-	// Should error when blank namespace not found
-	callContractFunctionAndCheckError(t, cc, []string{"somebadfunctionname"}, callType, "No contract found without namespace")
+	// Should error when blank name not found
+	callContractFunctionAndCheckError(t, cc, []string{"somebadfunctionname"}, callType, "No contract found without name")
 
 	mc := myContract{}
 	cc = convertC2CC(&mc)
 
-	// Should error when namespace not known
-	callContractFunctionAndCheckError(t, cc, []string{"somebadnamespace:somebadfunctionname"}, callType, "Namespace not found somebadnamespace")
+	// Should error when name not known
+	callContractFunctionAndCheckError(t, cc, []string{"somebadname:somebadfunctionname"}, callType, "Name not found somebadname")
 
 	// should return error when function not known and no unknown transaction specified
-	callContractFunctionAndCheckError(t, cc, []string{"somebadfunctionname"}, callType, "Function somebadfunctionname not found for contract with no namespace")
+	callContractFunctionAndCheckError(t, cc, []string{"somebadfunctionname"}, callType, "Function somebadfunctionname not found for contract with no name")
 
-	// should return error when function not known and no unknown transaction specified for custom namespace
-	mc.SetNamespace("customnamespace")
+	// should return error when function not known and no unknown transaction specified for custom name
+	mc.SetName("customname")
 	cc = convertC2CC(&mc)
-	callContractFunctionAndCheckError(t, cc, []string{"customnamespace:somebadfunctionname"}, callType, "Function somebadfunctionname not found in namespace customnamespace")
+	callContractFunctionAndCheckError(t, cc, []string{"customname:somebadfunctionname"}, callType, "Function somebadfunctionname not found in name customname")
 	mc = myContract{}
 	cc = convertC2CC(&mc)
 
@@ -2339,22 +2339,22 @@ func TestGetAfterTransaction(t *testing.T) {
 	assert.Equal(t, mc.ReturnsInt(), afterFn.(func() int)(), "function returned should be same value as set for after transaction")
 }
 
-func TestSetNamespace(t *testing.T) {
+func TestSetName(t *testing.T) {
 	mc := myContract{}
 
-	mc.SetNamespace("mynamespace")
+	mc.SetName("myname")
 
-	assert.NotNil(t, mc.namespace, "should have set namespace")
-	assert.Equal(t, "mynamespace", mc.namespace, "namespace set incorrectly")
+	assert.NotNil(t, mc.name, "should have set name")
+	assert.Equal(t, "myname", mc.name, "name set incorrectly")
 }
 
-func TestGetNamespace(t *testing.T) {
+func TestGetName(t *testing.T) {
 	mc := myContract{}
 
-	assert.Equal(t, "", mc.GetNamespace(), "should have returned blank ns when not set")
+	assert.Equal(t, "", mc.GetName(), "should have returned blank ns when not set")
 
-	mc.namespace = "mynamespace"
-	assert.Equal(t, "mynamespace", mc.GetNamespace(), "should have returned custom ns when set")
+	mc.name = "myname"
+	assert.Equal(t, "myname", mc.GetName(), "should have returned custom ns when set")
 }
 
 func TestSetTransactionContextHandler(t *testing.T) {
@@ -2668,11 +2668,11 @@ func TestGenerateMetadata(t *testing.T) {
 	}
 	bcFuncs := make(map[string]*contractFunction)
 	bcFuncs["BadFunction"] = someBadFunctionContractFunction
-	bcccn := contractChaincodeNamespace{
+	bcccn := contractChaincodeContract{
 		bcFuncs, nil, nil, nil, nil, nil,
 	}
 
-	cc.contracts = map[string]contractChaincodeNamespace{
+	cc.contracts = map[string]contractChaincodeContract{
 		"": bcccn,
 	}
 
@@ -2690,11 +2690,11 @@ func TestGenerateMetadata(t *testing.T) {
 	anotherBadFunctionContractFunction.returns.success = complexType
 	abcFuncs := make(map[string]*contractFunction)
 	abcFuncs["AnotherBadFunction"] = anotherBadFunctionContractFunction
-	abcccn := contractChaincodeNamespace{
+	abcccn := contractChaincodeContract{
 		abcFuncs, nil, nil, nil, nil, nil,
 	}
 
-	cc.contracts = map[string]contractChaincodeNamespace{
+	cc.contracts = map[string]contractChaincodeContract{
 		"": abcccn,
 	}
 
@@ -2711,7 +2711,7 @@ func TestGenerateMetadata(t *testing.T) {
 	someFunctionContractFunction := new(contractFunction)
 
 	someFunctionMetadata := TransactionMetadata{}
-	someFunctionMetadata.TransactionID = "SomeFunction"
+	someFunctionMetadata.Name = "SomeFunction"
 
 	anotherFunctionContractFunction := new(contractFunction)
 	anotherFunctionContractFunction.params = contractFunctionParams{
@@ -2751,13 +2751,13 @@ func TestGenerateMetadata(t *testing.T) {
 		successAsParam,
 		errorAsParam,
 	}
-	anotherFunctionMetadata.TransactionID = "AnotherFunction"
+	anotherFunctionMetadata.Name = "AnotherFunction"
 
 	var expectedMetadata ContractChaincodeMetadata
 
 	scFuncs := make(map[string]*contractFunction)
 	scFuncs["SomeFunction"] = someFunctionContractFunction
-	scccn := contractChaincodeNamespace{
+	scccn := contractChaincodeContract{
 		scFuncs, nil, nil, nil, nil, nil,
 	}
 
@@ -2765,18 +2765,18 @@ func TestGenerateMetadata(t *testing.T) {
 	cscFuncs["SomeFunction"] = someFunctionContractFunction
 
 	cscFuncs["AnotherFunction"] = anotherFunctionContractFunction
-	cscccn := contractChaincodeNamespace{
+	cscccn := contractChaincodeContract{
 		cscFuncs, nil, nil, nil, nil, nil,
 	}
 
-	// Should handle generating metadata for a single namespace with default namespacing
-	cc.contracts = map[string]contractChaincodeNamespace{
+	// Should handle generating metadata for a single name with default namespacing
+	cc.contracts = map[string]contractChaincodeContract{
 		"": scccn,
 	}
 	expectedMetadata = ContractChaincodeMetadata{}
 	expectedMetadata.Contracts = []ContractMetadata{
 		ContractMetadata{
-			Namespace: "",
+			Name: "",
 			Transactions: []TransactionMetadata{
 				someFunctionMetadata,
 			},
@@ -2785,14 +2785,14 @@ func TestGenerateMetadata(t *testing.T) {
 
 	testMetadata(t, generateMetadata(cc), expectedMetadata)
 
-	// Should handle generating metadata for a single namespace with custom namespace and order functions alphabetically on ID
-	cc.contracts = map[string]contractChaincodeNamespace{
-		"customnamespace": cscccn,
+	// Should handle generating metadata for a single name with custom name and order functions alphabetically on ID
+	cc.contracts = map[string]contractChaincodeContract{
+		"customname": cscccn,
 	}
 	expectedMetadata = ContractChaincodeMetadata{}
 	expectedMetadata.Contracts = []ContractMetadata{
 		ContractMetadata{
-			Namespace: "customnamespace",
+			Name: "customname",
 			Transactions: []TransactionMetadata{
 				anotherFunctionMetadata,
 				someFunctionMetadata,
@@ -2801,21 +2801,21 @@ func TestGenerateMetadata(t *testing.T) {
 	}
 	testMetadata(t, generateMetadata(cc), expectedMetadata)
 
-	// should handle generating metadata for multiple namespaces
-	cc.contracts = map[string]contractChaincodeNamespace{
-		"":                scccn,
-		"customnamespace": cscccn,
+	// should handle generating metadata for multiple names
+	cc.contracts = map[string]contractChaincodeContract{
+		"":           scccn,
+		"customname": cscccn,
 	}
 	expectedMetadata = ContractChaincodeMetadata{}
 	expectedMetadata.Contracts = []ContractMetadata{
 		ContractMetadata{
-			Namespace: "",
+			Name: "",
 			Transactions: []TransactionMetadata{
 				someFunctionMetadata,
 			},
 		},
 		ContractMetadata{
-			Namespace: "customnamespace",
+			Name: "customname",
 			Transactions: []TransactionMetadata{
 				anotherFunctionMetadata,
 				someFunctionMetadata,
@@ -2824,22 +2824,22 @@ func TestGenerateMetadata(t *testing.T) {
 	}
 	testMetadata(t, generateMetadata(cc), expectedMetadata)
 
-	// Should sort the contracts by alphabetical order on their namespace
-	cc.contracts = map[string]contractChaincodeNamespace{
-		"somenamespace":   scccn,
-		"customnamespace": cscccn,
+	// Should sort the contracts by alphabetical order on their name
+	cc.contracts = map[string]contractChaincodeContract{
+		"somename":   scccn,
+		"customname": cscccn,
 	}
 	expectedMetadata = ContractChaincodeMetadata{}
 	expectedMetadata.Contracts = []ContractMetadata{
 		ContractMetadata{
-			Namespace: "customnamespace",
+			Name: "customname",
 			Transactions: []TransactionMetadata{
 				anotherFunctionMetadata,
 				someFunctionMetadata,
 			},
 		},
 		ContractMetadata{
-			Namespace: "somenamespace",
+			Name: "somename",
 			Transactions: []TransactionMetadata{
 				someFunctionMetadata,
 			},
@@ -2856,13 +2856,13 @@ func TestGenerateMetadata(t *testing.T) {
 
 	filepath = createMetadataJSONFile(metadataBytes, os.ModePerm)
 
-	cc.contracts = map[string]contractChaincodeNamespace{
-		"customnamespace": cscccn,
+	cc.contracts = map[string]contractChaincodeContract{
+		"customname": cscccn,
 	}
 	expectedMetadata = ContractChaincodeMetadata{}
 	expectedMetadata.Contracts = []ContractMetadata{
 		ContractMetadata{
-			Namespace: "customnamespace",
+			Name: "customname",
 			Transactions: []TransactionMetadata{
 				anotherFunctionMetadata,
 				someFunctionMetadata,
@@ -2894,64 +2894,64 @@ func TestAddContract(t *testing.T) {
 	var cc *ContractChaincode
 	sc := simpleTestContract{}
 	csc := simpleTestContract{}
-	csc.namespace = "customnamespace"
+	csc.name = "customname"
 
-	// Should panic when contract passed with non unique namespace
+	// Should panic when contract passed with non unique name
 	cc = new(ContractChaincode)
-	cc.contracts = make(map[string]contractChaincodeNamespace)
-	cc.contracts[""] = contractChaincodeNamespace{}
-	assert.PanicsWithValue(t, "Multiple contracts being merged into chaincode without a namespace", func() { cc.addContract(new(simpleTestContract), []string{}) }, "didn't panic when multiple contracts share same namespace")
+	cc.contracts = make(map[string]contractChaincodeContract)
+	cc.contracts[""] = contractChaincodeContract{}
+	assert.PanicsWithValue(t, "Multiple contracts being merged into chaincode without a name", func() { cc.addContract(new(simpleTestContract), []string{}) }, "didn't panic when multiple contracts share same name")
 
 	cc = new(ContractChaincode)
-	cc.contracts = make(map[string]contractChaincodeNamespace)
-	cc.contracts["customnamespace"] = contractChaincodeNamespace{}
+	cc.contracts = make(map[string]contractChaincodeContract)
+	cc.contracts["customname"] = contractChaincodeContract{}
 	sc = simpleTestContract{}
-	sc.SetNamespace("customnamespace")
-	assert.PanicsWithValue(t, "Multiple contracts being merged into chaincode with namespace customnamespace", func() { cc.addContract(&sc, []string{}) }, "didn't panic when multiple contracts share same custom namespace")
+	sc.SetName("customname")
+	assert.PanicsWithValue(t, "Multiple contracts being merged into chaincode with name customname", func() { cc.addContract(&sc, []string{}) }, "didn't panic when multiple contracts share same custom name")
 	sc = simpleTestContract{}
 
-	// Should add contract with default namespace to chaincode
+	// Should add contract with default name to chaincode
 	cc = new(ContractChaincode)
-	cc.contracts = make(map[string]contractChaincodeNamespace)
+	cc.contracts = make(map[string]contractChaincodeContract)
 	cc.addContract(&sc, fullExclude)
-	testcontractChaincodeNamespaceRepresentsContract(t, cc.contracts[""], sc)
+	testContractChaincodeContractRepresentsContract(t, cc.contracts[""], sc)
 
-	// Should add contract with custom namespace to chaincode
+	// Should add contract with custom name to chaincode
 	cc = new(ContractChaincode)
-	cc.contracts = make(map[string]contractChaincodeNamespace)
+	cc.contracts = make(map[string]contractChaincodeContract)
 	cc.addContract(&csc, fullExclude)
-	testcontractChaincodeNamespaceRepresentsContract(t, cc.contracts["customnamespace"], csc)
+	testContractChaincodeContractRepresentsContract(t, cc.contracts["customname"], csc)
 
 	// Should add to map of chaincode not remove other chaincodes
 	cc = new(ContractChaincode)
-	cc.contracts = make(map[string]contractChaincodeNamespace)
+	cc.contracts = make(map[string]contractChaincodeContract)
 	cc.addContract(&sc, fullExclude)
 	cc.addContract(&csc, fullExclude)
-	testcontractChaincodeNamespaceRepresentsContract(t, cc.contracts[""], sc)
-	testcontractChaincodeNamespaceRepresentsContract(t, cc.contracts["customnamespace"], csc)
+	testContractChaincodeContractRepresentsContract(t, cc.contracts[""], sc)
+	testContractChaincodeContractRepresentsContract(t, cc.contracts["customname"], csc)
 
 	// Should add contract to map with unknown transaction
 	cc = new(ContractChaincode)
-	cc.contracts = make(map[string]contractChaincodeNamespace)
+	cc.contracts = make(map[string]contractChaincodeContract)
 	sc.unknownTransaction = sc.DoSomething
 	cc.addContract(&sc, fullExclude)
-	testcontractChaincodeNamespaceRepresentsContract(t, cc.contracts[""], sc)
+	testContractChaincodeContractRepresentsContract(t, cc.contracts[""], sc)
 	sc.unknownTransaction = nil
 
 	// Should add contract to map with before transaction
 	cc = new(ContractChaincode)
-	cc.contracts = make(map[string]contractChaincodeNamespace)
+	cc.contracts = make(map[string]contractChaincodeContract)
 	sc.beforeTransaction = sc.DoSomething
 	cc.addContract(&sc, fullExclude)
-	testcontractChaincodeNamespaceRepresentsContract(t, cc.contracts[""], sc)
+	testContractChaincodeContractRepresentsContract(t, cc.contracts[""], sc)
 	sc.beforeTransaction = nil
 
 	// Should add contract to map with after transaction
 	cc = new(ContractChaincode)
-	cc.contracts = make(map[string]contractChaincodeNamespace)
+	cc.contracts = make(map[string]contractChaincodeContract)
 	sc.afterTransaction = sc.DoSomething
 	cc.addContract(&sc, fullExclude)
-	testcontractChaincodeNamespaceRepresentsContract(t, cc.contracts[""], sc)
+	testContractChaincodeContractRepresentsContract(t, cc.contracts[""], sc)
 	sc.afterTransaction = nil
 }
 
@@ -2959,7 +2959,7 @@ func TestConvertC2CC(t *testing.T) {
 	sc := simpleTestContract{}
 
 	csc := simpleTestContract{}
-	csc.namespace = "customnamespace"
+	csc.name = "customname"
 
 	// Should create a valid chaincode from a single contract with a default ns
 	testConvertCC(t, []simpleTestContract{sc})

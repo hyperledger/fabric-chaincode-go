@@ -37,7 +37,7 @@ func convertC2CC(contracts ...ContractInterface) *ContractChaincode {
 	}
 
 	cc := new(ContractChaincode)
-	cc.contracts = make(map[string]contractChaincodeNamespace)
+	cc.contracts = make(map[string]contractChaincodeContract)
 
 	for _, contract := range contracts {
 		additionalExcludes := []string{}
@@ -48,11 +48,11 @@ func convertC2CC(contracts ...ContractInterface) *ContractChaincode {
 	}
 
 	sysC := new(systemContract)
-	sysC.SetNamespace(SystemContractNamespace)
+	sysC.SetName(SystemContractName)
 
 	cc.addContract(sysC, append(ciMethods, contractMethods...))
 
-	sccnStore := []contractChaincodeNamespace{}
+	sccnStore := []contractChaincodeContract{}
 
 	for k := range cc.contracts {
 		sccnStore = append(sccnStore, cc.contracts[k])

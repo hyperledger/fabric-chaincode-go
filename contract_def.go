@@ -45,10 +45,10 @@ type ContractInterface interface {
 	// Invoke.
 	GetAfterTransaction() (interface{}, error)
 
-	// GetNamespace returns the namespace of the contract. When the contract is used
-	// in creating a new chaincode this function is called and the namespace returned
+	// GetName returns the name of the contract. When the contract is used
+	// in creating a new chaincode this function is called and the name returned
 	// is then used to identify the contract within the chaincode on Init/Invoke calls.
-	GetNamespace() string
+	GetName() string
 
 	// GetTransactionContextHandler returns the TransactionContextInterface that is
 	// used by the functions of the contract. When the contract is used in creating
@@ -61,14 +61,14 @@ type ContractInterface interface {
 }
 
 // Contract defines functions for setting and getting before, after and unknown transactions
-// and namespaces. Can be embedded in user structs to quickly ensure their definition meets
+// and name. Can be embedded in user structs to quickly ensure their definition meets
 // the ContractInterface.
 type Contract struct {
 	unknownTransaction interface{}
 	beforeTransaction  interface{}
 	afterTransaction   interface{}
 	contextHandler     TransactionContextInterface
-	namespace          string
+	name               string
 }
 
 // SetUnknownTransaction sets function for contract's unknownTransaction.
@@ -113,15 +113,15 @@ func (c *Contract) GetAfterTransaction() (interface{}, error) {
 	return c.afterTransaction, nil
 }
 
-// SetNamespace sets the namespace for the contract.
-func (c *Contract) SetNamespace(ns string) {
-	c.namespace = ns
+// SetName sets the name for the contract.
+func (c *Contract) SetName(name string) {
+	c.name = name
 }
 
-// GetNamespace returns the current set namespace for
+// GetName returns the current set name for
 // the contract.
-func (c *Contract) GetNamespace() string {
-	return c.namespace
+func (c *Contract) GetName() string {
+	return c.name
 }
 
 // SetTransactionContextHandler sets the transaction context type to be used for

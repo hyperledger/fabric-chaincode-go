@@ -23,7 +23,7 @@ import (
 	"github.com/hyperledger/fabric/protos/peer"
 )
 
-type contractChaincodeNamespace struct {
+type contractChaincodeContract struct {
 	functions                    map[string]*contractFunction
 	unknownTransaction           *contractFunction
 	beforeTransaction            *contractFunction
@@ -34,11 +34,11 @@ type contractChaincodeNamespace struct {
 
 // ContractChaincode a struct to meet the chaincode interface and provide routing of calls to contracts
 type ContractChaincode struct {
-	contracts map[string]contractChaincodeNamespace
+	contracts map[string]contractChaincodeContract
 }
 
-// SystemContractNamespace the namespace of the system smart contract
-const SystemContractNamespace = "org.hyperledger.fabric"
+// SystemContractName the name of the system smart contract
+const SystemContractName = "org.hyperledger.fabric"
 
 // CreateNewChaincode creates a new chaincode using contracts passed. The function parses each
 // of the passed functions and stores details about their make-up to be used by the chaincode.
@@ -46,7 +46,7 @@ const SystemContractNamespace = "org.hyperledger.fabric"
 // will panic if contracts are invalid e.g. public functions take in illegal types. If no panic occurs
 // the a new chaincode handling the contracts is started in the shim. A system contract is added to the
 // chaincode which provides functionality for getting the metadata of the chaincode. The generated
-// metadata is a JSON formatted MetadataContractChaincode containing each contract as a namespace and details
+// metadata is a JSON formatted MetadataContractChaincode containing each contract as a name and details
 // of the public functions. The names for parameters do not match those used in the functions instead they are
 // recorded as param0, param1, ..., paramN. If there exists a file contract-metadata/metadata.json then this
 // will overwrite the generated metadata. The contents of this file must validate against the schema.
@@ -76,8 +76,8 @@ func (cc *ContractChaincode) Init(stub shim.ChaincodeStubInterface) peer.Respons
 // exist. If the before function returns an error the named function is not called and its error
 // is returned in shim.Error. If the after function returns an error then its value is returned
 // to shim.Error otherwise the value returned from the named function is returned as shim.Success.
-// If an unknown namespace is passed as part of the first arg a shim.Error is returned. If a valid
-// namespace is passed but the function name is unknown then the contract with that namespace's
+// If an unknown name is passed as part of the first arg a shim.Error is returned. If a valid
+// name is passed but the function name is unknown then the contract with that name's
 // unknown function is called and its value returned as success or error depending on it return. If no
 // unknown function is defined for the contract then shim.Error is returned by Invoke. In the case of
 // unknown function names being passed or the named function returning an error then the after function
@@ -101,9 +101,9 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 
 	if _, ok := cc.contracts[ns]; !ok {
 		if ns == "" {
-			return shim.Error("No contract found without namespace")
+			return shim.Error("No contract found without name")
 		}
-		return shim.Error(fmt.Sprintf("Namespace not found %s", ns))
+		return shim.Error(fmt.Sprintf("Name not found %s", ns))
 	}
 
 	nsContract := cc.contracts[ns]
@@ -129,9 +129,9 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 		unknownTransaction := nsContract.unknownTransaction
 		if unknownTransaction == nil {
 			if ns == "" {
-				return shim.Error(fmt.Sprintf("Function %s not found for contract with no namespace", fn))
+				return shim.Error(fmt.Sprintf("Function %s not found for contract with no name", fn))
 			}
-			return shim.Error(fmt.Sprintf("Function %s not found in namespace %s", fn, ns))
+			return shim.Error(fmt.Sprintf("Function %s not found in name %s", fn, ns))
 		}
 
 		successReturn, errorReturn = unknownTransaction.call(ctx, params...)
@@ -157,17 +157,17 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 }
 
 func (cc *ContractChaincode) addContract(contract ContractInterface, excludeFuncs []string) {
-	ns := contract.GetNamespace()
+	ns := contract.GetName()
 
 	if _, ok := cc.contracts[ns]; ok {
 		if ns == "" {
-			panic(fmt.Sprintf("Multiple contracts being merged into chaincode without a namespace"))
+			panic(fmt.Sprintf("Multiple contracts being merged into chaincode without a name"))
 		}
 
-		panic(fmt.Sprintf("Multiple contracts being merged into chaincode with namespace %s", contract.GetNamespace()))
+		panic(fmt.Sprintf("Multiple contracts being merged into chaincode with name %s", contract.GetName()))
 	}
 
-	ccn := contractChaincodeNamespace{}
+	ccn := contractChaincodeContract{}
 	ccn.transactionContextHandler = reflect.ValueOf(contract.GetTransactionContextHandler()).Elem().Type()
 	ccn.transactionContextPtrHandler = reflect.ValueOf(contract.GetTransactionContextHandler()).Type()
 	ccn.functions = make(map[string]*contractFunction)

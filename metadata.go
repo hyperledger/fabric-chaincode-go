@@ -48,359 +48,8 @@ var osHelper osExc = osExcStr{}
 
 // GetJSONSchema returns the JSON schema used for metadata
 func GetJSONSchema() string {
-	return `{
-		"$schema": "http://json-schema.org/draft-04/schema#",
-		"$id": "http://example.com/root.json",
-		"type": "object",
-		"title": "Hyperledger Fabric Contract Definition JSON Schema",
-		"required": [
-			"info",
-			"contracts"
-		],
-		"properties": {
-			"info": {
-				"$ref": "#/definitions/info"
-			},
-			"contracts": {
-				"type": "array",
-				"items": {
-					"$ref": "#/definitions/contract"
-				}
-			},
-			"components": {
-				"$ref": "#/definitions/components"
-			}
-		},
-		"definitions": {
-			"info": {
-				"type": "object",
-				"description": "General information about the API.",
-				"required": [
-					"version",
-					"title"
-				],
-				"properties": {
-					"title": {
-						"type": "string",
-						"description": "A unique and precise title of the API."
-					},
-					"version": {
-						"type": "string",
-						"description": "A semantic version number of the API."
-					},
-					"description": {
-						"type": "string",
-						"description": "A longer description of the API. Should be different from the title.  GitHub Flavored Markdown is allowed."
-					},
-					"termsOfService": {
-						"type": "string",
-						"description": "The terms of service for the API."
-					},
-					"contact": {
-						"$ref": "#/definitions/contact"
-					},
-					"license": {
-						"$ref": "#/definitions/license"
-					}
-				}
-			},
-			"contact": {
-				"type": "object",
-				"description": "Contact information for the owners of the API.",
-				"properties": {
-					"name": {
-						"type": "string",
-						"description": "The identifying name of the contact person/organization."
-					},
-					"url": {
-						"type": "string",
-						"description": "The URL pointing to the contact information.",
-						"format": "uri"
-					},
-					"email": {
-						"type": "string",
-						"description": "The email address of the contact person/organization.",
-						"format": "email"
-					}
-				}
-			},
-			"license": {
-				"type": "object",
-				"required": [
-					"name"
-				],
-				"additionalProperties": false,
-				"properties": {
-					"name": {
-						"type": "string",
-						"description": "The name of the license type. It's encouraged to use an OSI compatible license."
-					},
-					"url": {
-						"type": "string",
-						"description": "The URL pointing to the license.",
-						"format": "uri"
-					}
-				}
-			},
-			"contract": {
-				"type": "object",
-				"description": "",
-				"required": [
-					"namespace",
-					"transactions"
-				],
-				"properties": {
-					"info": {
-						"$ref": "#/definitions/info"
-					},
-					"namespace": {
-						"type": "string",
-						"description": "A unique and precise title of the API."
-					},
-					"transactions": {
-						"type": "array",
-						"items": {
-							"$ref": "#/definitions/transaction"
-						}
-					}
-				}
-			},
-			"asset": {
-				"type": "object",
-				"description": "A complex type used in a domain",
-				"required": [
-					"name",
-					"properties"
-				],
-				"properties": {
-					"name": {
-						"type": "string"
-					},
-					"properties": {
-						"$ref": "#/definitions/parametersList"
-					}
-				}
-			},
-			"parametersList": {
-				"type": "array",
-				"description": "The parameters needed to send a valid API call.",
-				"additionalItems": false,
-				"items": {
-					"oneOf": [
-						{
-							"$ref": "#/definitions/parameter"
-						},
-						{
-							"$ref": "#/definitions/jsonReference"
-						}
-					]
-				},
-				"uniqueItems": true
-			},
-			"transaction": {
-				"type": "object",
-				"description": "single transaction specification",
-				"required": [
-					"transactionId"
-				],
-				"properties": {
-					"transactionId": {
-						"type": "string",
-						"description": "name of the transaction "
-					},
-					"tag": {
-						"type": "array",
-						"items": {
-							"type": "string",
-							"desciprition": "free format tags"
-						}
-					},
-					"parameters": {
-						"$ref": "#/definitions/parametersList"
-					},
-					"returns": {
-						"oneOf": [
-							{
-								"$ref": "#/definitions/parameter"
-							},
-							{
-								"$ref": "#/definitions/parametersList"
-							}
-						]
-					}
-				}
-			},
-			"parameter": {
-				"type": "object",
-				"required": [
-					"name",
-					"schema"
-				],
-				"properties": {
-					"description": {
-						"type": "string",
-						"description": "A brief description of the parameter. This could contain examples of use.  GitHub Flavored Markdown is allowed."
-					},
-					"name": {
-						"type": "string",
-						"description": "The name of the parameter."
-					},
-					"required": {
-						"type": "boolean",
-						"description": "Determines whether or not this parameter is required or optional.",
-						"default": false
-					},
-					"schema": {
-						"$ref": "#/definitions/schema"
-					}
-				},
-				"additionalProperties": false
-			},
-			"jsonReference": {
-				"type": "object",
-				"required": [
-					"$ref"
-				],
-				"additionalProperties": false,
-				"properties": {
-					"$ref": {
-						"type": "string"
-					}
-				}
-			},
-			"schema": {
-				"type": "object",
-				"description": "A deterministic version of a JSON Schema object.",
-				"properties": {
-					"$ref": {
-						"type": "string"
-					},
-					"format": {
-						"type": "string"
-					},
-					"title": {
-						"$ref": "http://json-schema.org/draft-04/schema#/properties/title"
-					},
-					"description": {
-						"$ref": "http://json-schema.org/draft-04/schema#/properties/description"
-					},
-					"default": {
-						"$ref": "http://json-schema.org/draft-04/schema#/properties/default"
-					},
-					"multipleOf": {
-						"$ref": "http://json-schema.org/draft-04/schema#/properties/multipleOf"
-					},
-					"maximum": {
-						"$ref": "http://json-schema.org/draft-04/schema#/properties/maximum"
-					},
-					"exclusiveMaximum": {
-						"$ref": "http://json-schema.org/draft-04/schema#/properties/exclusiveMaximum"
-					},
-					"minimum": {
-						"$ref": "http://json-schema.org/draft-04/schema#/properties/minimum"
-					},
-					"exclusiveMinimum": {
-						"$ref": "http://json-schema.org/draft-04/schema#/properties/exclusiveMinimum"
-					},
-					"maxLength": {
-						"$ref": "http://json-schema.org/draft-04/schema#/definitions/positiveInteger"
-					},
-					"minLength": {
-						"$ref": "http://json-schema.org/draft-04/schema#/definitions/positiveIntegerDefault0"
-					},
-					"pattern": {
-						"$ref": "http://json-schema.org/draft-04/schema#/properties/pattern"
-					},
-					"maxItems": {
-						"$ref": "http://json-schema.org/draft-04/schema#/definitions/positiveInteger"
-					},
-					"minItems": {
-						"$ref": "http://json-schema.org/draft-04/schema#/definitions/positiveIntegerDefault0"
-					},
-					"uniqueItems": {
-						"$ref": "http://json-schema.org/draft-04/schema#/properties/uniqueItems"
-					},
-					"maxProperties": {
-						"$ref": "http://json-schema.org/draft-04/schema#/definitions/positiveInteger"
-					},
-					"minProperties": {
-						"$ref": "http://json-schema.org/draft-04/schema#/definitions/positiveIntegerDefault0"
-					},
-					"required": {
-						"$ref": "http://json-schema.org/draft-04/schema#/definitions/stringArray"
-					},
-					"enum": {
-						"$ref": "http://json-schema.org/draft-04/schema#/properties/enum"
-					},
-					"additionalProperties": {
-						"anyOf": [
-							{
-								"$ref": "#/definitions/schema"
-							},
-							{
-								"type": "boolean"
-							}
-						],
-						"default": {}
-					},
-					"type": {
-						"$ref": "http://json-schema.org/draft-04/schema#/properties/type"
-					},
-					"items": {
-						"anyOf": [
-							{
-								"$ref": "#/definitions/schema"
-							},
-							{
-								"type": "array",
-								"minItems": 1,
-								"items": {
-									"$ref": "#/definitions/schema"
-								}
-							}
-						],
-						"default": {}
-					},
-					"allOf": {
-						"type": "array",
-						"minItems": 1,
-						"items": {
-							"$ref": "#/definitions/schema"
-						}
-					},
-					"properties": {
-						"type": "object",
-						"additionalProperties": {
-							"$ref": "#/definitions/schema"
-						},
-						"default": {}
-					},
-					"discriminator": {
-						"type": "string"
-					},
-					"readOnly": {
-						"type": "boolean",
-						"default": false
-					},
-					"example": {}
-				},
-				"additionalProperties": false
-			},
-			"components": {
-				"type": "object",
-				"properties": {
-					"schemas": {
-						"type": "object",
-						"patternProperties": {
-							"^.*$": {
-								"$ref": "#/definitions/asset"
-							}
-						}
-					}
-				}
-			}
-		}
-	}`
+	file, _ := ioutil.ReadFile("./schema/schema.json")
+	return string(file)
 }
 
 // LicenseMetadata details for the license of the chaincode
@@ -594,16 +243,16 @@ type ParameterMetadata struct {
 
 // TransactionMetadata contains information on what makes up a transaction
 type TransactionMetadata struct {
-	Parameters    []ParameterMetadata `json:"parameters,omitempty"`
-	Returns       []ParameterMetadata `json:"returns,omitempty"`
-	Tag           []string            `json:"tag,omitempty"`
-	TransactionID string              `json:"transactionId"`
+	Parameters []ParameterMetadata `json:"parameters,omitempty"`
+	Returns    []ParameterMetadata `json:"returns,omitempty"`
+	Tag        []string            `json:"tag,omitempty"`
+	Name       string              `json:"name"`
 }
 
 // ContractMetadata contains information about what makes up a contract
 type ContractMetadata struct {
 	Info         InfoMetadata          `json:"info,omitempty"`
-	Namespace    string                `json:"namespace"`
+	Name         string                `json:"name"`
 	Transactions []TransactionMetadata `json:"transactions"`
 }
 
@@ -642,11 +291,11 @@ func generateMetadata(cc ContractChaincode) string {
 	if execErr != nil || os.IsNotExist(err) {
 		for key, contract := range cc.contracts {
 			contractMetadata := ContractMetadata{}
-			contractMetadata.Namespace = key
+			contractMetadata.Name = key
 
 			for key, fn := range contract.functions {
 				transactionMetadata := TransactionMetadata{}
-				transactionMetadata.TransactionID = key
+				transactionMetadata.Name = key
 
 				for index, field := range fn.params.fields {
 					schema, err := getSchema(field)
@@ -693,14 +342,14 @@ func generateMetadata(cc ContractChaincode) string {
 			}
 
 			sort.Slice(contractMetadata.Transactions, func(i, j int) bool {
-				return contractMetadata.Transactions[i].TransactionID < contractMetadata.Transactions[j].TransactionID
+				return contractMetadata.Transactions[i].Name < contractMetadata.Transactions[j].Name
 			})
 
 			ccMetadata.Contracts = append(ccMetadata.Contracts, contractMetadata)
 		}
 
 		sort.Slice(ccMetadata.Contracts, func(i, j int) bool {
-			return ccMetadata.Contracts[i].Namespace < ccMetadata.Contracts[j].Namespace
+			return ccMetadata.Contracts[i].Name < ccMetadata.Contracts[j].Name
 		})
 	} else {
 		metadataBytes, err := ioutil.ReadFile(metadataPath)
