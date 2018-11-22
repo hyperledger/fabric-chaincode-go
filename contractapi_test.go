@@ -734,9 +734,22 @@ func cleanupMetadataJSONFile() {
 func testMetadata(t *testing.T, metadata string, expectedMetadata ContractChaincodeMetadata) {
 	t.Helper()
 
+	// Should be valid against schema
+	schemaLoader := gojsonschema.NewBytesLoader([]byte(GetJSONSchema()))
+	metadataLoader := gojsonschema.NewBytesLoader([]byte(metadata))
+
+	result, err := gojsonschema.Validate(schemaLoader, metadataLoader)
+	assert.Nil(t, err, "should not error when validating")
+	errors := ""
+	for index, desc := range result.Errors() {
+		errors = errors + "\n" + strconv.Itoa(index+1) + ".\t" + desc.String()
+	}
+	assert.True(t, result.Valid(), fmt.Sprintf("should be valid against schema. \n%s", errors))
+
+	// Should be unmarshallable
 	contractChaincodeMetadata := ContractChaincodeMetadata{}
 
-	err := json.Unmarshal([]byte(metadata), &contractChaincodeMetadata)
+	err = json.Unmarshal([]byte(metadata), &contractChaincodeMetadata)
 
 	assert.Nil(t, err, "Should be able to unmarshal metadata")
 	assert.Equal(t, expectedMetadata, contractChaincodeMetadata, "Should match expected metadata")

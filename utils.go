@@ -487,7 +487,6 @@ func buildArrayOrSliceSchema(obj reflect.Value) (*Schema, error) {
 }
 
 func getSchema(field reflect.Type) (*Schema, error) {
-	// TODO HANDLE GETTING SCHEMAS FOR METADATA OF ASSETS USING A REF TO COMPONENTS
 	if bt, ok := basicTypes[field.Kind()]; !ok {
 		if field.Kind() == reflect.Array {
 			return buildArraySchema(reflect.New(field).Elem())

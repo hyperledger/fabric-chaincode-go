@@ -280,8 +280,8 @@ func generateMetadata(cc ContractChaincode) string {
 	ex, execErr := osHelper.Executable()
 	if execErr != nil {
 		logger.Error(fmt.Sprintf("Error finding location of running executable. Defaulting to Reflected metadata. %s", execErr.Error()))
-
 	}
+
 	exPath := filepath.Dir(ex)
 
 	metadataPath := filepath.Join(exPath, metadataFolder, metadataFile)
