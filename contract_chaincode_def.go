@@ -92,18 +92,14 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 	var fn string
 
 	if li == -1 {
-		ns = ""
-		fn = nsFcn
-	} else {
-		ns = nsFcn[:li]
-		fn = nsFcn[li+1:]
+		return shim.Error("Name was not passed")
 	}
 
+	ns = nsFcn[:li]
+	fn = nsFcn[li+1:]
+
 	if _, ok := cc.contracts[ns]; !ok {
-		if ns == "" {
-			return shim.Error("No contract found without name")
-		}
-		return shim.Error(fmt.Sprintf("Name not found %s", ns))
+		return shim.Error(fmt.Sprintf("Contract not found with name %s", ns))
 	}
 
 	nsContract := cc.contracts[ns]
@@ -128,10 +124,7 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 	if _, ok := nsContract.functions[fn]; !ok {
 		unknownTransaction := nsContract.unknownTransaction
 		if unknownTransaction == nil {
-			if ns == "" {
-				return shim.Error(fmt.Sprintf("Function %s not found for contract with no name", fn))
-			}
-			return shim.Error(fmt.Sprintf("Function %s not found in name %s", fn, ns))
+			return shim.Error(fmt.Sprintf("Function %s not found in contract %s", fn, ns))
 		}
 
 		successReturn, errorReturn = unknownTransaction.call(ctx, params...)
@@ -159,11 +152,11 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 func (cc *ContractChaincode) addContract(contract ContractInterface, excludeFuncs []string) {
 	ns := contract.GetName()
 
-	if _, ok := cc.contracts[ns]; ok {
-		if ns == "" {
-			panic(fmt.Sprintf("Multiple contracts being merged into chaincode without a name"))
-		}
+	if ns == "" {
+		ns = reflect.TypeOf(contract).Elem().Name()
+	}
 
+	if _, ok := cc.contracts[ns]; ok {
 		panic(fmt.Sprintf("Multiple contracts being merged into chaincode with name %s", contract.GetName()))
 	}
 

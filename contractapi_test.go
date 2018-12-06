@@ -809,6 +809,7 @@ func testConvertCC(t *testing.T, testData []simpleTestContract) {
 	assert.Equal(t, len(testData)+1, len(cc.contracts), "Didn't map correct number of smart contracts")
 
 	expectedSysMetadata := ContractChaincodeMetadata{}
+	expectedSysMetadata.Contracts = make(map[string]ContractMetadata)
 
 	successSchema := Schema{}
 	successSchema.Type = []string{"string"}
@@ -834,6 +835,10 @@ func testConvertCC(t *testing.T, testData []simpleTestContract) {
 		contract := testData[i]
 		ns := contract.GetName()
 
+		if ns == "" {
+			ns = reflect.TypeOf(contract).Name()
+		}
+
 		nsContract, ok := cc.contracts[ns]
 
 		contractMetadata := ContractMetadata{}
@@ -842,7 +847,7 @@ func testConvertCC(t *testing.T, testData []simpleTestContract) {
 			simpleContractFunctionMetadata,
 		}
 
-		expectedSysMetadata.Contracts = append(expectedSysMetadata.Contracts, contractMetadata)
+		expectedSysMetadata.Contracts[ns] = contractMetadata
 
 		assert.True(t, ok, "should have name in map of contracts")
 
@@ -873,7 +878,7 @@ func testConvertCC(t *testing.T, testData []simpleTestContract) {
 		systemContractFunctionMetadata,
 	}
 
-	expectedSysMetadata.Contracts = append(expectedSysMetadata.Contracts, systemContractMetadata)
+	expectedSysMetadata.Contracts[SystemContractName] = systemContractMetadata
 
 	metadata, _ := fn.call(reflect.Value{})
 
@@ -927,75 +932,72 @@ func testCallingContractFunctions(t *testing.T, callType string) {
 
 	cc := convertC2CC()
 
-	// Should error when blank name not found
-	callContractFunctionAndCheckError(t, cc, []string{"somebadfunctionname"}, callType, "No contract found without name")
+	// Should error when name not passed
+	callContractFunctionAndCheckError(t, cc, []string{"justafunctioname"}, callType, "Name was not passed")
 
 	mc := myContract{}
 	cc = convertC2CC(&mc)
 
 	// Should error when name not known
-	callContractFunctionAndCheckError(t, cc, []string{"somebadname:somebadfunctionname"}, callType, "Name not found somebadname")
+	callContractFunctionAndCheckError(t, cc, []string{"somebadname:somebadfunctionname"}, callType, "Contract not found with name somebadname")
 
 	// should return error when function not known and no unknown transaction specified
-	callContractFunctionAndCheckError(t, cc, []string{"somebadfunctionname"}, callType, "Function somebadfunctionname not found for contract with no name")
-
-	// should return error when function not known and no unknown transaction specified for custom name
 	mc.SetName("customname")
 	cc = convertC2CC(&mc)
-	callContractFunctionAndCheckError(t, cc, []string{"customname:somebadfunctionname"}, callType, "Function somebadfunctionname not found in name customname")
+	callContractFunctionAndCheckError(t, cc, []string{"customname:somebadfunctionname"}, callType, "Function somebadfunctionname not found in contract customname")
 	mc = myContract{}
 	cc = convertC2CC(&mc)
 
 	// Should return success when function returns nothing
-	callContractFunctionAndCheckSuccess(t, cc, []string{"ReturnsNothing"}, callType, "")
+	callContractFunctionAndCheckSuccess(t, cc, []string{"myContract:ReturnsNothing"}, callType, "")
 
 	// should return success when function returns no error
-	callContractFunctionAndCheckSuccess(t, cc, []string{"ReturnsString"}, callType, mc.ReturnsString())
+	callContractFunctionAndCheckSuccess(t, cc, []string{"myContract:ReturnsString"}, callType, mc.ReturnsString())
 
 	// Should return error when function returns error
-	callContractFunctionAndCheckError(t, cc, []string{"ReturnsError"}, callType, mc.ReturnsError().Error())
+	callContractFunctionAndCheckError(t, cc, []string{"myContract:ReturnsError"}, callType, mc.ReturnsError().Error())
 
 	// Should return error when function unknown and set unknown function returns error
 	mc.SetUnknownTransaction(mc.ReturnsError)
 	cc = convertC2CC(&mc)
-	callContractFunctionAndCheckError(t, cc, []string{"somebadfunctionname"}, callType, mc.ReturnsError().Error())
+	callContractFunctionAndCheckError(t, cc, []string{"myContract:somebadfunctionname"}, callType, mc.ReturnsError().Error())
 	mc = myContract{}
 
 	// Should return success when function unknown and set unknown function returns no error
 	mc.SetUnknownTransaction(mc.ReturnsString)
 	cc = convertC2CC(&mc)
-	callContractFunctionAndCheckSuccess(t, cc, []string{"somebadfunctionname"}, callType, mc.ReturnsString())
+	callContractFunctionAndCheckSuccess(t, cc, []string{"myContract:somebadfunctionname"}, callType, mc.ReturnsString())
 	mc = myContract{}
 
 	// Should return error when before function returns error and not call main function
 	mc.SetBeforeTransaction(mc.ReturnsError)
 	cc = convertC2CC(&mc)
-	callContractFunctionAndCheckError(t, cc, []string{"ReturnsString"}, callType, mc.ReturnsError().Error())
+	callContractFunctionAndCheckError(t, cc, []string{"myContract:ReturnsString"}, callType, mc.ReturnsError().Error())
 	mc = myContract{}
 
 	// Should return success from passed function when before function returns no error
 	mc.SetBeforeTransaction(mc.ReturnsString)
 	cc = convertC2CC(&mc)
-	callContractFunctionAndCheckSuccess(t, cc, []string{"ReturnsString"}, callType, mc.ReturnsString())
+	callContractFunctionAndCheckSuccess(t, cc, []string{"myContract:ReturnsString"}, callType, mc.ReturnsString())
 	mc = myContract{}
 
 	// Should return error when after function returns error
 	mc.SetAfterTransaction(mc.ReturnsError)
 	cc = convertC2CC(&mc)
-	callContractFunctionAndCheckError(t, cc, []string{"ReturnsString"}, callType, mc.ReturnsError().Error())
+	callContractFunctionAndCheckError(t, cc, []string{"myContract:ReturnsString"}, callType, mc.ReturnsError().Error())
 	mc = myContract{}
 
 	// Should return success from passed function when before function returns error
 	mc.SetAfterTransaction(mc.ReturnsString)
 	cc = convertC2CC(&mc)
-	callContractFunctionAndCheckSuccess(t, cc, []string{"ReturnsString"}, callType, mc.ReturnsString())
+	callContractFunctionAndCheckSuccess(t, cc, []string{"myContract:ReturnsString"}, callType, mc.ReturnsString())
 	mc = myContract{}
 
 	// Should call before, named then after functions in order
 	mc.SetBeforeTransaction(mc.logBefore)
 	mc.SetAfterTransaction(mc.logAfter)
 	cc = convertC2CC(&mc)
-	callContractFunctionAndCheckSuccess(t, cc, []string{"LogNamed"}, callType, "")
+	callContractFunctionAndCheckSuccess(t, cc, []string{"myContract:LogNamed"}, callType, "")
 	assert.Equal(t, []string{"Before function called", "Named function called", "After function called"}, mc.called, "Expected called field of myContract to have logged in order before, named then after")
 	mc = myContract{}
 
@@ -1004,28 +1006,28 @@ func testCallingContractFunctions(t *testing.T, callType string) {
 	mc.SetAfterTransaction(mc.logAfter)
 	mc.SetUnknownTransaction(mc.logUnknown)
 	cc = convertC2CC(&mc)
-	callContractFunctionAndCheckSuccess(t, cc, []string{"somebadfunctionname"}, callType, "")
+	callContractFunctionAndCheckSuccess(t, cc, []string{"myContract:somebadfunctionname"}, callType, "")
 	assert.Equal(t, []string{"Before function called", "Unknown function called", "After function called"}, mc.called, "Expected called field of myContract to have logged in order before, named then after")
 	mc = myContract{}
 
 	// should pass the stub into transaction context as expected
-	callContractFunctionAndCheckSuccess(t, cc, []string{"CheckContextStub"}, callType, "Stub as expected")
+	callContractFunctionAndCheckSuccess(t, cc, []string{"myContract:CheckContextStub"}, callType, "Stub as expected")
 
 	sc := simpleTestContractWithCustomContext{}
 	sc.SetTransactionContextHandler(new(customContext))
 	cc = convertC2CC(&sc)
 
 	//should use a custom transaction context when one is set
-	callContractFunctionAndCheckSuccess(t, cc, []string{"CheckCustomContext"}, callType, "I am custom context")
+	callContractFunctionAndCheckSuccess(t, cc, []string{"simpleTestContractWithCustomContext:CheckCustomContext"}, callType, "I am custom context")
 
 	//should use same ctx for all calls
 	sc.SetBeforeTransaction(sc.SetValInCustomContext)
 	cc = convertC2CC(&sc)
-	callContractFunctionAndCheckSuccess(t, cc, []string{"GetValInCustomContext", standardValue}, callType, standardValue)
+	callContractFunctionAndCheckSuccess(t, cc, []string{"simpleTestContractWithCustomContext:GetValInCustomContext", standardValue}, callType, standardValue)
 
 	sc.SetAfterTransaction(sc.GetValInCustomContext)
 	cc = convertC2CC(&sc)
-	callContractFunctionAndCheckError(t, cc, []string{"SetValInCustomContext", "some other value"}, callType, "I wanted a standard value")
+	callContractFunctionAndCheckError(t, cc, []string{"simpleTestContractWithCustomContext:SetValInCustomContext", "some other value"}, callType, "I wanted a standard value")
 }
 
 // ============== utils.go ==============
@@ -2659,7 +2661,7 @@ func TestGenerateMetadata(t *testing.T) {
 	cleanupMetadataJSONFile()
 
 	// should use metadata file data
-	metadataBytes = []byte("{\"info\":{\"title\":\"my contract\",\"version\":\"0.0.1\"},\"contracts\":[],\"components\":{}}")
+	metadataBytes = []byte("{\"info\":{\"title\":\"my contract\",\"version\":\"0.0.1\"},\"contracts\":{},\"components\":{}}")
 
 	filepath = createMetadataJSONFile(metadataBytes, os.ModePerm)
 	assert.Equal(t, string(metadataBytes), generateMetadata(cc), "should return metadata from file")
@@ -2787,12 +2789,11 @@ func TestGenerateMetadata(t *testing.T) {
 		"": scccn,
 	}
 	expectedMetadata = ContractChaincodeMetadata{}
-	expectedMetadata.Contracts = []ContractMetadata{
-		ContractMetadata{
-			Name: "",
-			Transactions: []TransactionMetadata{
-				someFunctionMetadata,
-			},
+	expectedMetadata.Contracts = make(map[string]ContractMetadata)
+	expectedMetadata.Contracts[""] = ContractMetadata{
+		Name: "",
+		Transactions: []TransactionMetadata{
+			someFunctionMetadata,
 		},
 	}
 
@@ -2803,15 +2804,15 @@ func TestGenerateMetadata(t *testing.T) {
 		"customname": cscccn,
 	}
 	expectedMetadata = ContractChaincodeMetadata{}
-	expectedMetadata.Contracts = []ContractMetadata{
-		ContractMetadata{
-			Name: "customname",
-			Transactions: []TransactionMetadata{
-				anotherFunctionMetadata,
-				someFunctionMetadata,
-			},
+	expectedMetadata.Contracts = make(map[string]ContractMetadata)
+	expectedMetadata.Contracts["customname"] = ContractMetadata{
+		Name: "customname",
+		Transactions: []TransactionMetadata{
+			anotherFunctionMetadata,
+			someFunctionMetadata,
 		},
 	}
+
 	testMetadata(t, generateMetadata(cc), expectedMetadata)
 
 	// should handle generating metadata for multiple names
@@ -2820,44 +2821,21 @@ func TestGenerateMetadata(t *testing.T) {
 		"customname": cscccn,
 	}
 	expectedMetadata = ContractChaincodeMetadata{}
-	expectedMetadata.Contracts = []ContractMetadata{
-		ContractMetadata{
-			Name: "",
-			Transactions: []TransactionMetadata{
-				someFunctionMetadata,
-			},
-		},
-		ContractMetadata{
-			Name: "customname",
-			Transactions: []TransactionMetadata{
-				anotherFunctionMetadata,
-				someFunctionMetadata,
-			},
+	expectedMetadata.Contracts = make(map[string]ContractMetadata)
+	expectedMetadata.Contracts[""] = ContractMetadata{
+		Name: "",
+		Transactions: []TransactionMetadata{
+			someFunctionMetadata,
 		},
 	}
-	testMetadata(t, generateMetadata(cc), expectedMetadata)
+	expectedMetadata.Contracts["customname"] = ContractMetadata{
+		Name: "customname",
+		Transactions: []TransactionMetadata{
+			anotherFunctionMetadata,
+			someFunctionMetadata,
+		},
+	}
 
-	// Should sort the contracts by alphabetical order on their name
-	cc.contracts = map[string]contractChaincodeContract{
-		"somename":   scccn,
-		"customname": cscccn,
-	}
-	expectedMetadata = ContractChaincodeMetadata{}
-	expectedMetadata.Contracts = []ContractMetadata{
-		ContractMetadata{
-			Name: "customname",
-			Transactions: []TransactionMetadata{
-				anotherFunctionMetadata,
-				someFunctionMetadata,
-			},
-		},
-		ContractMetadata{
-			Name: "somename",
-			Transactions: []TransactionMetadata{
-				someFunctionMetadata,
-			},
-		},
-	}
 	testMetadata(t, generateMetadata(cc), expectedMetadata)
 
 	// Should use reflected metadata when getting executable location fails
@@ -2873,15 +2851,15 @@ func TestGenerateMetadata(t *testing.T) {
 		"customname": cscccn,
 	}
 	expectedMetadata = ContractChaincodeMetadata{}
-	expectedMetadata.Contracts = []ContractMetadata{
-		ContractMetadata{
-			Name: "customname",
-			Transactions: []TransactionMetadata{
-				anotherFunctionMetadata,
-				someFunctionMetadata,
-			},
+	expectedMetadata.Contracts = make(map[string]ContractMetadata)
+	expectedMetadata.Contracts["customname"] = ContractMetadata{
+		Name: "customname",
+		Transactions: []TransactionMetadata{
+			anotherFunctionMetadata,
+			someFunctionMetadata,
 		},
 	}
+
 	testMetadata(t, generateMetadata(cc), expectedMetadata)
 
 	cleanupMetadataJSONFile()
@@ -2912,11 +2890,6 @@ func TestAddContract(t *testing.T) {
 	// Should panic when contract passed with non unique name
 	cc = new(ContractChaincode)
 	cc.contracts = make(map[string]contractChaincodeContract)
-	cc.contracts[""] = contractChaincodeContract{}
-	assert.PanicsWithValue(t, "Multiple contracts being merged into chaincode without a name", func() { cc.addContract(new(simpleTestContract), []string{}) }, "didn't panic when multiple contracts share same name")
-
-	cc = new(ContractChaincode)
-	cc.contracts = make(map[string]contractChaincodeContract)
 	cc.contracts["customname"] = contractChaincodeContract{}
 	sc = simpleTestContract{}
 	sc.SetName("customname")
@@ -2927,7 +2900,7 @@ func TestAddContract(t *testing.T) {
 	cc = new(ContractChaincode)
 	cc.contracts = make(map[string]contractChaincodeContract)
 	cc.addContract(&sc, fullExclude)
-	testContractChaincodeContractRepresentsContract(t, cc.contracts[""], sc)
+	testContractChaincodeContractRepresentsContract(t, cc.contracts["simpleTestContract"], sc)
 
 	// Should add contract with custom name to chaincode
 	cc = new(ContractChaincode)
@@ -2940,7 +2913,7 @@ func TestAddContract(t *testing.T) {
 	cc.contracts = make(map[string]contractChaincodeContract)
 	cc.addContract(&sc, fullExclude)
 	cc.addContract(&csc, fullExclude)
-	testContractChaincodeContractRepresentsContract(t, cc.contracts[""], sc)
+	testContractChaincodeContractRepresentsContract(t, cc.contracts["simpleTestContract"], sc)
 	testContractChaincodeContractRepresentsContract(t, cc.contracts["customname"], csc)
 
 	// Should add contract to map with unknown transaction
@@ -2948,7 +2921,7 @@ func TestAddContract(t *testing.T) {
 	cc.contracts = make(map[string]contractChaincodeContract)
 	sc.unknownTransaction = sc.DoSomething
 	cc.addContract(&sc, fullExclude)
-	testContractChaincodeContractRepresentsContract(t, cc.contracts[""], sc)
+	testContractChaincodeContractRepresentsContract(t, cc.contracts["simpleTestContract"], sc)
 	sc.unknownTransaction = nil
 
 	// Should add contract to map with before transaction
@@ -2956,7 +2929,7 @@ func TestAddContract(t *testing.T) {
 	cc.contracts = make(map[string]contractChaincodeContract)
 	sc.beforeTransaction = sc.DoSomething
 	cc.addContract(&sc, fullExclude)
-	testContractChaincodeContractRepresentsContract(t, cc.contracts[""], sc)
+	testContractChaincodeContractRepresentsContract(t, cc.contracts["simpleTestContract"], sc)
 	sc.beforeTransaction = nil
 
 	// Should add contract to map with after transaction
@@ -2964,7 +2937,7 @@ func TestAddContract(t *testing.T) {
 	cc.contracts = make(map[string]contractChaincodeContract)
 	sc.afterTransaction = sc.DoSomething
 	cc.addContract(&sc, fullExclude)
-	testContractChaincodeContractRepresentsContract(t, cc.contracts[""], sc)
+	testContractChaincodeContractRepresentsContract(t, cc.contracts["simpleTestContract"], sc)
 	sc.afterTransaction = nil
 }
 

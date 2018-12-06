@@ -269,13 +269,14 @@ type ComponentMetadata struct {
 
 // ContractChaincodeMetadata describes a chaincode made using the contractapi
 type ContractChaincodeMetadata struct {
-	Info       InfoMetadata       `json:"info,omitempty"`
-	Contracts  []ContractMetadata `json:"contracts"`
-	Components ComponentMetadata  `json:"components"`
+	Info       InfoMetadata                `json:"info,omitempty"`
+	Contracts  map[string]ContractMetadata `json:"contracts"`
+	Components ComponentMetadata           `json:"components"`
 }
 
 func generateMetadata(cc ContractChaincode) string {
 	ccMetadata := new(ContractChaincodeMetadata)
+	ccMetadata.Contracts = make(map[string]ContractMetadata)
 
 	ex, execErr := osHelper.Executable()
 	if execErr != nil {
@@ -345,12 +346,8 @@ func generateMetadata(cc ContractChaincode) string {
 				return contractMetadata.Transactions[i].Name < contractMetadata.Transactions[j].Name
 			})
 
-			ccMetadata.Contracts = append(ccMetadata.Contracts, contractMetadata)
+			ccMetadata.Contracts[key] = contractMetadata
 		}
-
-		sort.Slice(ccMetadata.Contracts, func(i, j int) bool {
-			return ccMetadata.Contracts[i].Name < ccMetadata.Contracts[j].Name
-		})
 	} else {
 		metadataBytes, err := ioutil.ReadFile(metadataPath)
 
