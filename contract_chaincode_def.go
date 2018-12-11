@@ -17,7 +17,10 @@ package contractapi
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
+
+	"github.com/go-openapi/spec"
 
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	"github.com/hyperledger/fabric/protos/peer"
@@ -35,6 +38,7 @@ type contractChaincodeContract struct {
 // ContractChaincode a struct to meet the chaincode interface and provide routing of calls to contracts
 type ContractChaincode struct {
 	contracts map[string]contractChaincodeContract
+	metadata  ContractChaincodeMetadata
 }
 
 // SystemContractName the name of the system smart contract
@@ -111,7 +115,7 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 	beforeTransaction := nsContract.beforeTransaction
 
 	if beforeTransaction != nil {
-		_, errRes := beforeTransaction.call(ctx, params...)
+		_, errRes := beforeTransaction.call(ctx, TransactionMetadata{}, params...)
 
 		if errRes != nil {
 			return shim.Error(errRes.Error())
@@ -127,9 +131,18 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 			return shim.Error(fmt.Sprintf("Function %s not found in contract %s", fn, ns))
 		}
 
-		successReturn, errorReturn = unknownTransaction.call(ctx, params...)
+		successReturn, errorReturn = unknownTransaction.call(ctx, TransactionMetadata{}, params...)
 	} else {
-		successReturn, errorReturn = nsContract.functions[fn].call(ctx, params...)
+		var transactionSchema TransactionMetadata
+
+		for _, v := range cc.metadata.Contracts[ns].Transactions {
+			if v.Name == fn {
+				transactionSchema = v
+				break
+			}
+		}
+
+		successReturn, errorReturn = nsContract.functions[fn].call(ctx, transactionSchema, params...)
 	}
 
 	if errorReturn != nil {
@@ -139,7 +152,7 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 	afterTransaction := nsContract.afterTransaction
 
 	if afterTransaction != nil {
-		_, errRes := afterTransaction.call(ctx, params...)
+		_, errRes := afterTransaction.call(ctx, TransactionMetadata{}, params...)
 
 		if errRes != nil {
 			return shim.Error(errRes.Error())
@@ -196,4 +209,79 @@ func (cc *ContractChaincode) addContract(contract ContractInterface, excludeFunc
 	}
 
 	cc.contracts[ns] = ccn
+}
+
+func (cc *ContractChaincode) reflectMetadata() ContractChaincodeMetadata {
+	reflectedMetadata := ContractChaincodeMetadata{}
+	reflectedMetadata.Contracts = make(map[string]ContractMetadata)
+
+	for key, contract := range cc.contracts {
+		contractMetadata := ContractMetadata{}
+		contractMetadata.Name = key
+
+		for key, fn := range contract.functions {
+			transactionMetadata := TransactionMetadata{}
+			transactionMetadata.Name = key
+
+			for index, field := range fn.params.fields {
+				schema, err := getSchema(field)
+
+				if err != nil {
+					panic(fmt.Sprintf("Failed to generate metadata. Invalid function parameter type. %s", err))
+				}
+
+				param := ParameterMetadata{}
+				param.Name = fmt.Sprintf("param%d", index)
+				param.Required = true
+				param.Schema = *schema
+
+				transactionMetadata.Parameters = append(transactionMetadata.Parameters, param)
+			}
+
+			if fn.returns.success != nil {
+				schema, err := getSchema(fn.returns.success)
+
+				if err != nil {
+					panic(fmt.Sprintf("Failed to generate metadata. Invalid function success return type. %s", err))
+				}
+
+				param := ParameterMetadata{}
+				param.Name = "success"
+				param.Schema = *schema
+
+				transactionMetadata.Returns = append(transactionMetadata.Returns, param)
+			}
+
+			if fn.returns.error {
+				schema := spec.SchemaProps{}
+				schema.Type = []string{"object"}
+				schema.Format = "error"
+
+				param := ParameterMetadata{}
+				param.Name = "error"
+				param.Schema = schema
+
+				transactionMetadata.Returns = append(transactionMetadata.Returns, param)
+			}
+
+			contractMetadata.Transactions = append(contractMetadata.Transactions, transactionMetadata)
+		}
+
+		sort.Slice(contractMetadata.Transactions, func(i, j int) bool {
+			return contractMetadata.Transactions[i].Name < contractMetadata.Transactions[j].Name
+		})
+
+		reflectedMetadata.Contracts[key] = contractMetadata
+	}
+
+	return reflectedMetadata
+}
+
+func (cc *ContractChaincode) augmentMetadata() {
+	fileMetadata := readMetadataFile()
+	reflectedMetadata := cc.reflectMetadata()
+
+	fileMetadata.append(reflectedMetadata)
+
+	cc.metadata = fileMetadata
 }

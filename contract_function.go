@@ -18,6 +18,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
+
+	"github.com/xeipuuv/gojsonschema"
 )
 
 type contractFunctionParams struct {
@@ -36,8 +39,8 @@ type contractFunction struct {
 	returns  contractFunctionReturns
 }
 
-func (cf contractFunction) call(ctx reflect.Value, params ...string) (string, error) {
-	values, err := getArgs(cf, ctx, params)
+func (cf contractFunction) call(ctx reflect.Value, supplementaryMetadata TransactionMetadata, params ...string) (string, error) {
+	values, err := getArgs(cf, ctx, supplementaryMetadata, params)
 
 	if err != nil {
 		return "", err
@@ -258,7 +261,28 @@ func createArrayOrSlice(param string, objType reflect.Type) (reflect.Value, erro
 	return obj.Elem(), nil
 }
 
-func getArgs(fn contractFunction, ctx reflect.Value, params []string) ([]reflect.Value, error) {
+func getArgs(fn contractFunction, ctx reflect.Value, supplementaryMetadata TransactionMetadata, params []string) ([]reflect.Value, error) {
+	var validationSchema string
+
+	if !reflect.DeepEqual(supplementaryMetadata, TransactionMetadata{}) {
+		validationSchema = `{
+			"$schema": "http://json-schema.org/draft-04/schema#",
+			"type": "object",
+			"title": "Hyperledger Fabric Contract Definition JSON Schema",
+			"required": [
+			  "value"
+			],
+			"properties": {
+			  "value": {
+				"$ref": "#/definitions/value"
+			  }
+			},
+			"definitions": {
+			  "value": %s
+			}
+		  }`
+	}
+
 	values := []reflect.Value{}
 
 	numParams := len(fn.params.fields)
@@ -277,27 +301,54 @@ func getArgs(fn contractFunction, ctx reflect.Value, params []string) ([]reflect
 
 		fieldType := fn.params.fields[i]
 
+		var converted reflect.Value
+		var err error
 		if fieldType.Kind() == reflect.Array || fieldType.Kind() == reflect.Slice {
 			if !inParamRange {
 				params[i] = "[]"
 			}
 
-			slice, err := createArrayOrSlice(params[i], fieldType)
+			converted, err = createArrayOrSlice(params[i], fieldType)
 
 			if err != nil {
 				return nil, err
 			}
 
-			values = append(values, slice)
 		} else {
-			converted, err := basicTypes[fieldType.Kind()].convert(params[i])
+			converted, err = basicTypes[fieldType.Kind()].convert(params[i])
 
 			if err != nil {
 				return nil, fmt.Errorf("Param %s could not be converted to type %s", params[i], fieldType.String())
 			}
-
-			values = append(values, converted)
 		}
+
+		if validationSchema != "" {
+			paramSchema, _ := json.Marshal(supplementaryMetadata.Parameters[i].Schema)
+
+			schemaLoader := gojsonschema.NewStringLoader(fmt.Sprintf(validationSchema, string(paramSchema)))
+
+			value := params[i]
+
+			if fieldType.Kind() == reflect.String {
+				value = fmt.Sprintf("\"%s\"", params[i])
+			}
+
+			metadataLoader := gojsonschema.NewStringLoader(fmt.Sprintf("{\"value\": %s}", value)) // WILL THIS HOLD UP TO PASSED JSON STRINGS OR ARRAYS OF STRINGS?
+
+			result, _ := gojsonschema.Validate(schemaLoader, metadataLoader)
+
+			if !result.Valid() {
+				var errors string
+
+				for index, desc := range result.Errors() {
+					errors = errors + "\n" + strconv.Itoa(index+1) + ".\t" + desc.String()
+				}
+
+				return nil, fmt.Errorf("Value passed for parameter \"%s\" did not match schema: %s", supplementaryMetadata.Parameters[i].Name, errors)
+			}
+		}
+
+		values = append(values, converted)
 	}
 
 	return values, nil

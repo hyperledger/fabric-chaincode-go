@@ -15,6 +15,7 @@
 package contractapi
 
 import (
+	"encoding/json"
 	"reflect"
 )
 
@@ -58,7 +59,11 @@ func convertC2CC(contracts ...ContractInterface) *ContractChaincode {
 		sccnStore = append(sccnStore, cc.contracts[k])
 	}
 
-	sysC.setMetadata(generateMetadata(*cc))
+	cc.augmentMetadata()
+
+	metadataJSON, _ := json.Marshal(cc.metadata)
+
+	sysC.setMetadata(string(metadataJSON))
 
 	return cc
 }
