@@ -37,8 +37,9 @@ type contractChaincodeContract struct {
 
 // ContractChaincode a struct to meet the chaincode interface and provide routing of calls to contracts
 type ContractChaincode struct {
-	contracts map[string]contractChaincodeContract
-	metadata  ContractChaincodeMetadata
+	defaultContract string
+	contracts       map[string]contractChaincodeContract
+	metadata        ContractChaincodeMetadata
 }
 
 // SystemContractName the name of the system smart contract
@@ -84,9 +85,9 @@ func (cc *ContractChaincode) Init(stub shim.ChaincodeStubInterface) peer.Respons
 // name is passed but the function name is unknown then the contract with that name's
 // unknown function is called and its value returned as success or error depending on it return. If no
 // unknown function is defined for the contract then shim.Error is returned by Invoke. In the case of
-// unknown function names being passed or the named function returning an error then the after function
+// unknown function names being passed (and the unknown handler returns an error) or the named function returning an error then the after function
 // if defined is not called. The same transaction context is passed as a pointer to before, after, named
-// and unknown functions on each Invoke.
+// and unknown functions on each Invoke. If no contract name is passed then the default contract is used.
 func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Response {
 	nsFcn, params := stub.GetFunctionAndParameters()
 
@@ -96,11 +97,12 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 	var fn string
 
 	if li == -1 {
-		return shim.Error("Name was not passed")
+		ns = cc.defaultContract
+		fn = nsFcn
+	} else {
+		ns = nsFcn[:li]
+		fn = nsFcn[li+1:]
 	}
-
-	ns = nsFcn[:li]
-	fn = nsFcn[li+1:]
 
 	if _, ok := cc.contracts[ns]; !ok {
 		return shim.Error(fmt.Sprintf("Contract not found with name %s", ns))
@@ -209,15 +211,23 @@ func (cc *ContractChaincode) addContract(contract ContractInterface, excludeFunc
 	}
 
 	cc.contracts[ns] = ccn
+
+	if cc.defaultContract == "" {
+		cc.defaultContract = ns
+	}
 }
 
 func (cc *ContractChaincode) reflectMetadata() ContractChaincodeMetadata {
 	reflectedMetadata := ContractChaincodeMetadata{}
 	reflectedMetadata.Contracts = make(map[string]ContractMetadata)
+	reflectedMetadata.Info.Version = "latest"
+	reflectedMetadata.Info.Title = "undefined"
 
 	for key, contract := range cc.contracts {
 		contractMetadata := ContractMetadata{}
 		contractMetadata.Name = key
+		contractMetadata.Info.Version = "latest"
+		contractMetadata.Info.Title = key
 
 		for key, fn := range contract.functions {
 			transactionMetadata := TransactionMetadata{}
@@ -253,7 +263,7 @@ func (cc *ContractChaincode) reflectMetadata() ContractChaincodeMetadata {
 			}
 
 			if fn.returns.error {
-				schema := spec.SchemaProps{}
+				schema := spec.Schema{}
 				schema.Type = []string{"object"}
 				schema.Format = "error"
 

@@ -87,6 +87,12 @@
 			"revisionTime": "2018-11-28T00:54:46Z"
 		},
 		{
+			"checksumSHA1": "MTeriRmQy3y9gRq4rvg4rVAZzUU=",
+			"path": "github.com/go-openapi/runtime",
+			"revision": "41e24cc66d7af6af39eb9b5a6418e901bcdd333c",
+			"revisionTime": "2018-12-06T22:12:56Z"
+		},
+		{
 			"checksumSHA1": "2ZVTA4uU620nvDXR1gWgJ5ferkc=",
 			"path": "github.com/go-openapi/spec",
 			"revision": "5b6cdde3200976e3ecceb2868706ee39b6aff3e4",
@@ -103,6 +109,12 @@
 			"path": "github.com/go-openapi/swag",
 			"revision": "1d29f06aebd59ccdf11ae04aa0334ded96e2d909",
 			"revisionTime": "2018-11-17T16:42:32Z"
+		},
+		{
+			"checksumSHA1": "jP8PV6KuAr4Ng41HMFgx7O8lfg4=",
+			"path": "github.com/go-openapi/validate",
+			"revision": "d2eab7d93009e9215fc85b2faa2c2f2a98c2af48",
+			"revisionTime": "2018-10-07T00:21:36Z"
 		},
 		{
 			"checksumSHA1": "4ie6PbMZ0JHgHkS1/sUrAjVeA2w=",

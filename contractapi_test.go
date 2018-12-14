@@ -24,12 +24,15 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/go-openapi/spec"
+	"github.com/go-openapi/strfmt"
+	"github.com/go-openapi/validate"
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	"github.com/hyperledger/fabric/protos/peer"
 	"github.com/stretchr/testify/assert"
-	"github.com/xeipuuv/gojsonschema"
 )
 
 const standardAssetID = "ABC123"
@@ -87,6 +90,26 @@ func (o osExcTestStr) Executable() (string, error) {
 	return "", errors.New("some error")
 }
 
+func (o osExcTestStr) Stat(name string) (os.FileInfo, error) {
+	return nil, nil
+}
+
+type osStatTestStr struct{}
+
+func (o osStatTestStr) Executable() (string, error) {
+	return "", nil
+}
+
+func (o osStatTestStr) Stat(name string) (os.FileInfo, error) {
+	return os.Stat("some bad file")
+}
+
+type ioUtilReadFileTestStr struct{}
+
+func (io ioUtilReadFileTestStr) ReadFile(filename string) ([]byte, error) {
+	return nil, errors.New("some error")
+}
+
 func testConvertError(t *testing.T, bt basicType, toPass string, expectedType string) {
 	t.Helper()
 
@@ -95,7 +118,7 @@ func testConvertError(t *testing.T, bt basicType, toPass string, expectedType st
 	assert.Equal(t, reflect.Value{}, val, "should have returned the blank value")
 }
 
-func testBuildArrayOrSliceSchema(t *testing.T, toTest interface{}, expectedSchema *Schema) {
+func testBuildArrayOrSliceSchema(t *testing.T, toTest interface{}, expectedSchema *spec.Schema) {
 	t.Helper()
 
 	arr := reflect.ValueOf(toTest)
@@ -106,8 +129,8 @@ func testBuildArrayOrSliceSchema(t *testing.T, toTest interface{}, expectedSchem
 	assert.Equal(t, expectedSchema, schema, "should have returned expected schema")
 }
 
-func testGetSchema(t *testing.T, typ reflect.Type, expectedSchema *Schema) {
-	var schema *Schema
+func testGetSchema(t *testing.T, typ reflect.Type, expectedSchema *spec.Schema) {
+	var schema *spec.Schema
 	var err error
 
 	t.Helper()
@@ -611,10 +634,10 @@ func setContractFunctionReturns(cf *contractFunction, successReturn reflect.Type
 	cf.returns = cfr
 }
 
-func callGetArgsAndBasicTest(t *testing.T, cf contractFunction, ctx *TransactionContext, testParams []string) []reflect.Value {
+func callGetArgsAndBasicTest(t *testing.T, cf contractFunction, ctx *TransactionContext, supplementaryMetadata TransactionMetadata, testParams []string) []reflect.Value {
 	t.Helper()
 
-	values, err := getArgs(cf, reflect.ValueOf(ctx), testParams)
+	values, err := getArgs(cf, reflect.ValueOf(ctx), supplementaryMetadata, testParams)
 
 	assert.Nil(t, err, "should not return an error for a valid cf")
 
@@ -686,7 +709,7 @@ func testGetArgsWithTypes(t *testing.T, types map[reflect.Kind]interface{}, para
 			typ,
 		})
 
-		values := callGetArgsAndBasicTest(t, cf, ctx, params)
+		values := callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, params)
 		testReflectValueEqualSlice(t, values, expectedArgs)
 	}
 }
@@ -731,28 +754,27 @@ func cleanupMetadataJSONFile() {
 	os.RemoveAll(folderPath)
 }
 
-func testMetadata(t *testing.T, metadata string, expectedMetadata ContractChaincodeMetadata) {
+func testMetadata(t *testing.T, ccMetadata ContractChaincodeMetadata, expectedMetadata ContractChaincodeMetadata) {
 	t.Helper()
 
 	// Should be valid against schema
-	schemaLoader := gojsonschema.NewBytesLoader([]byte(GetJSONSchema()))
-	metadataLoader := gojsonschema.NewBytesLoader([]byte(metadata))
+	schema := new(spec.Schema)
+	json.Unmarshal([]byte(GetJSONSchema()), schema)
 
-	result, err := gojsonschema.Validate(schemaLoader, metadataLoader)
-	assert.Nil(t, err, "should not error when validating")
-	errors := ""
-	for index, desc := range result.Errors() {
-		errors = errors + "\n" + strconv.Itoa(index+1) + ".\t" + desc.String()
+	metadataBytes, _ := json.Marshal(ccMetadata)
+
+	metadata := map[string]interface{}{}
+	json.Unmarshal(metadataBytes, &metadata)
+
+	err := validate.AgainstSchema(schema, metadata, strfmt.Default)
+
+	if err != nil {
+		panic(fmt.Sprintf("Failed testing metadata. Given metadata did not match schema: %s", err.Error()))
 	}
-	assert.True(t, result.Valid(), fmt.Sprintf("should be valid against schema. \n%s", errors))
 
-	// Should be unmarshallable
-	contractChaincodeMetadata := ContractChaincodeMetadata{}
+	assert.Nil(t, err, "should be valid against schema.")
 
-	err = json.Unmarshal([]byte(metadata), &contractChaincodeMetadata)
-
-	assert.Nil(t, err, "Should be able to unmarshal metadata")
-	assert.Equal(t, expectedMetadata, contractChaincodeMetadata, "Should match expected metadata")
+	assert.Equal(t, expectedMetadata, ccMetadata, "Should match expected metadata")
 }
 
 func testContractChaincodeContractRepresentsContract(t *testing.T, ccns contractChaincodeContract, contract simpleTestContract) {
@@ -809,12 +831,15 @@ func testConvertCC(t *testing.T, testData []simpleTestContract) {
 	assert.Equal(t, len(testData)+1, len(cc.contracts), "Didn't map correct number of smart contracts")
 
 	expectedSysMetadata := ContractChaincodeMetadata{}
+	expectedSysMetadata.Info = spec.Info{}
+	expectedSysMetadata.Info.Title = "undefined"
+	expectedSysMetadata.Info.Version = "latest"
 	expectedSysMetadata.Contracts = make(map[string]ContractMetadata)
 
-	successSchema := Schema{}
+	successSchema := spec.Schema{}
 	successSchema.Type = []string{"string"}
 
-	errorSchema := Schema{}
+	errorSchema := spec.Schema{}
 	errorSchema.Type = []string{"object"}
 	errorSchema.Format = "error"
 
@@ -842,6 +867,9 @@ func testConvertCC(t *testing.T, testData []simpleTestContract) {
 		nsContract, ok := cc.contracts[ns]
 
 		contractMetadata := ContractMetadata{}
+		contractMetadata.Info = spec.Info{}
+		contractMetadata.Info.Title = ns
+		contractMetadata.Info.Version = "latest"
 		contractMetadata.Name = ns
 		contractMetadata.Transactions = []TransactionMetadata{
 			simpleContractFunctionMetadata,
@@ -873,6 +901,9 @@ func testConvertCC(t *testing.T, testData []simpleTestContract) {
 	}
 
 	systemContractMetadata := ContractMetadata{}
+	systemContractMetadata.Info = spec.Info{}
+	systemContractMetadata.Info.Title = "org.hyperledger.fabric"
+	systemContractMetadata.Info.Version = "latest"
 	systemContractMetadata.Name = SystemContractName
 	systemContractMetadata.Transactions = []TransactionMetadata{
 		systemContractFunctionMetadata,
@@ -880,9 +911,13 @@ func testConvertCC(t *testing.T, testData []simpleTestContract) {
 
 	expectedSysMetadata.Contracts[SystemContractName] = systemContractMetadata
 
-	metadata, _ := fn.call(reflect.Value{})
+	metadata, _ := fn.call(reflect.Value{}, TransactionMetadata{})
 
-	testMetadata(t, metadata, expectedSysMetadata)
+	ccMetadata := ContractChaincodeMetadata{}
+
+	json.Unmarshal([]byte(metadata), &ccMetadata)
+
+	testMetadata(t, ccMetadata, expectedSysMetadata)
 }
 
 func callContractFunctionAndCheckError(t *testing.T, cc *ContractChaincode, arguments []string, callType string, expectedMessage string) {
@@ -932,9 +967,6 @@ func testCallingContractFunctions(t *testing.T, callType string) {
 
 	cc := convertC2CC()
 
-	// Should error when name not passed
-	callContractFunctionAndCheckError(t, cc, []string{"justafunctioname"}, callType, "Name was not passed")
-
 	mc := myContract{}
 	cc = convertC2CC(&mc)
 
@@ -945,6 +977,10 @@ func testCallingContractFunctions(t *testing.T, callType string) {
 	mc.SetName("customname")
 	cc = convertC2CC(&mc)
 	callContractFunctionAndCheckError(t, cc, []string{"customname:somebadfunctionname"}, callType, "Function somebadfunctionname not found in contract customname")
+
+	// Should call default chaincode when name not passed
+	callContractFunctionAndCheckError(t, cc, []string{"somebadfunctionname"}, callType, "Function somebadfunctionname not found in contract customname")
+
 	mc = myContract{}
 	cc = convertC2CC(&mc)
 
@@ -1047,6 +1083,23 @@ func TestSliceAsCommaSentence(t *testing.T) {
 	assert.Equal(t, "one, two and three", sliceAsCommaSentence(slice), "should have put commas between slice elements and join last element with and")
 }
 
+func TestReadLocalFile(t *testing.T) {
+	// should return the file and error of reading given filepath
+	file, err := readLocalFile("schema/schema.json")
+
+	expectedFile, expectedErr := ioutil.ReadFile("./schema/schema.json")
+
+	assert.Equal(t, expectedFile, file, "should return same file")
+	assert.Equal(t, expectedErr, err, "should return same err")
+
+	file, err = readLocalFile("i don't exist")
+
+	expectedFile, expectedErr = ioutil.ReadFile("i don't exist")
+
+	assert.Equal(t, expectedFile, file, "should return same file")
+	assert.Contains(t, err.Error(), strings.Split(expectedErr.Error(), ":")[1], "should return same err")
+}
+
 func TestConvert(t *testing.T) {
 
 	var val reflect.Value
@@ -1137,138 +1190,113 @@ func TestConvert(t *testing.T) {
 }
 
 func TestTypesGetSchema(t *testing.T) {
-	var expectedSchema *Schema
-	var actualSchema *Schema
+	var expectedSchema *spec.Schema
+	var actualSchema *spec.Schema
+
+	var minimum float64
+	var maximum float64
 
 	// string
-	expectedSchema = new(Schema)
-	expectedSchema.Type = []string{"string"}
+	expectedSchema = spec.StringProperty()
 	actualSchema = stringTypeVar.getSchema()
 
 	assert.Equal(t, expectedSchema, actualSchema, "should give back string schema")
 
 	// bool
-	expectedSchema = new(Schema)
-	expectedSchema.Type = []string{"boolean"}
+	expectedSchema = spec.BooleanProperty()
 	actualSchema = boolTypeVar.getSchema()
 
 	assert.Equal(t, expectedSchema, actualSchema, "should give back bool schema")
 
 	// ints
-	expectedSchema = new(Schema)
-	expectedSchema.Type = []string{"integer"}
-	expectedSchema.Format = "int64"
+	expectedSchema = spec.Int64Property()
 	actualSchema = intTypeVar.getSchema()
 
 	assert.Equal(t, expectedSchema, actualSchema, "should give back int schema")
 
-	expectedSchema = new(Schema)
-	expectedSchema.Type = []string{"integer"}
-	expectedSchema.Format = "int32"
-	expectedSchema.Minimum = -128
-	expectedSchema.Maximum = 127
+	expectedSchema = spec.Int8Property()
 	actualSchema = int8TypeVar.getSchema()
 
 	assert.Equal(t, expectedSchema, actualSchema, "should give back int8 schema")
 
-	expectedSchema = new(Schema)
-	expectedSchema.Type = []string{"integer"}
-	expectedSchema.Format = "int32"
-	expectedSchema.Minimum = -32768
-	expectedSchema.Maximum = 32767
+	expectedSchema = spec.Int16Property()
 	actualSchema = int16TypeVar.getSchema()
 
 	assert.Equal(t, expectedSchema, actualSchema, "should give back int16 schema")
 
-	expectedSchema = new(Schema)
-	expectedSchema.Type = []string{"integer"}
-	expectedSchema.Format = "int32"
+	expectedSchema = spec.Int32Property()
 	actualSchema = int32TypeVar.getSchema()
 
 	assert.Equal(t, expectedSchema, actualSchema, "should give back int32 schema")
 
-	expectedSchema = new(Schema)
-	expectedSchema.Type = []string{"integer"}
-	expectedSchema.Format = "int64"
+	expectedSchema = spec.Int64Property()
 	actualSchema = int64TypeVar.getSchema()
 
 	assert.Equal(t, expectedSchema, actualSchema, "should give back int64 schema")
 
 	// uints
-	expectedSchema = new(Schema)
-	expectedSchema.Type = []string{"number"}
-	expectedSchema.Format = "float64"
-	expectedSchema.Minimum = 0
-	expectedSchema.Maximum = 18446744073709551615
+	expectedSchema = spec.Float64Property()
+	multOf := float64(1)
+	expectedSchema.MultipleOf = &multOf
+	minimum = float64(0)
+	expectedSchema.Minimum = &minimum
+	maximum = float64(18446744073709551615)
+	expectedSchema.Maximum = &maximum
 	actualSchema = uintTypeVar.getSchema()
 
 	assert.Equal(t, expectedSchema, actualSchema, "should give back uint schema")
 
-	expectedSchema = new(Schema)
-	expectedSchema.Type = []string{"integer"}
-	expectedSchema.Format = "int32"
-	expectedSchema.Minimum = 0
-	expectedSchema.Maximum = 255
+	expectedSchema = spec.Int32Property()
+	minimum = float64(0)
+	expectedSchema.Minimum = &minimum
+	maximum = float64(255)
+	expectedSchema.Maximum = &maximum
 	actualSchema = uint8TypeVar.getSchema()
 
 	assert.Equal(t, expectedSchema, actualSchema, "should give back uint8 schema")
 
-	expectedSchema = new(Schema)
-	expectedSchema.Type = []string{"integer"}
-	expectedSchema.Format = "int64"
-	expectedSchema.Minimum = 0
-	expectedSchema.Maximum = 65535
+	expectedSchema = spec.Int64Property()
+	minimum = float64(0)
+	expectedSchema.Minimum = &minimum
+	maximum = float64(65535)
+	expectedSchema.Maximum = &maximum
 	actualSchema = uint16TypeVar.getSchema()
 
 	assert.Equal(t, expectedSchema, actualSchema, "should give back uint16 schema")
 
-	expectedSchema = new(Schema)
-	expectedSchema.Type = []string{"integer"}
-	expectedSchema.Format = "int64"
-	expectedSchema.Minimum = 0
-	expectedSchema.Maximum = 4294967295
+	expectedSchema = spec.Int64Property()
+	minimum = float64(0)
+	expectedSchema.Minimum = &minimum
+	maximum = float64(4294967295)
+	expectedSchema.Maximum = &maximum
 	actualSchema = uint32TypeVar.getSchema()
 
 	assert.Equal(t, expectedSchema, actualSchema, "should give back uint32 schema")
 
-	expectedSchema = new(Schema)
-	expectedSchema.Type = []string{"number"}
-	expectedSchema.Format = "float64"
-	expectedSchema.Minimum = 0
-	expectedSchema.Maximum = 18446744073709551615
+	expectedSchema = spec.Float64Property()
+	expectedSchema.MultipleOf = &multOf
+	minimum = float64(0)
+	expectedSchema.Minimum = &minimum
+	maximum = float64(18446744073709551615)
+	expectedSchema.Maximum = &maximum
 	actualSchema = uint64TypeVar.getSchema()
 
 	assert.Equal(t, expectedSchema, actualSchema, "should give back uint64 schema")
 
 	// floats
-	expectedSchema = new(Schema)
-	expectedSchema.Type = []string{"number"}
-	expectedSchema.Format = "float32"
+	expectedSchema = spec.Float32Property()
 	actualSchema = float32TypeVar.getSchema()
 
 	assert.Equal(t, expectedSchema, actualSchema, "should give back float32 schema")
 
-	expectedSchema = new(Schema)
-	expectedSchema.Type = []string{"number"}
-	expectedSchema.Format = "float64"
+	expectedSchema = spec.Float64Property()
 	actualSchema = float64TypeVar.getSchema()
 
 	assert.Equal(t, expectedSchema, actualSchema, "should give back float64 schema")
 }
 
-func TestNewArraySchema(t *testing.T) {
-	// Should return a schema of type array with schema in items
-	lowerSchema := new(Schema)
-	lowerSchema.Type = []string{"string"}
-
-	schema := newArraySchema(lowerSchema)
-
-	assert.Equal(t, StringOrArray([]string{"array"}), schema.Type, "should have set type to array")
-	assert.Equal(t, lowerSchema, schema.Items.Schema, "should have set items schema")
-}
-
 func TestBuildArraySchema(t *testing.T) {
-	var schema *Schema
+	var schema *spec.Schema
 	var err error
 
 	// Should return an error when array is passed with a length of zero
@@ -1287,7 +1315,7 @@ func TestBuildArraySchema(t *testing.T) {
 }
 
 func TestBuildSliceSchema(t *testing.T) {
-	var schema *Schema
+	var schema *spec.Schema
 	var err error
 
 	// Should handle adding to the length of the slice if currently 0
@@ -1303,22 +1331,22 @@ func TestBuildSliceSchema(t *testing.T) {
 
 func TestBuildArrayOrSliceSchema(t *testing.T) {
 	var err error
-	var schema *Schema
+	var schema *spec.Schema
 
-	stringArraySchema := newArraySchema(stringTypeVar.getSchema())
-	boolArraySchema := newArraySchema(boolTypeVar.getSchema())
-	intArraySchema := newArraySchema(intTypeVar.getSchema())
-	int8ArraySchema := newArraySchema(int8TypeVar.getSchema())
-	int16ArraySchema := newArraySchema(int16TypeVar.getSchema())
-	int32ArraySchema := newArraySchema(int32TypeVar.getSchema())
-	int64ArraySchema := newArraySchema(int64TypeVar.getSchema())
-	uintArraySchema := newArraySchema(uintTypeVar.getSchema())
-	uint8ArraySchema := newArraySchema(uint8TypeVar.getSchema())
-	uint16ArraySchema := newArraySchema(uint16TypeVar.getSchema())
-	uint32ArraySchema := newArraySchema(uint32TypeVar.getSchema())
-	uint64ArraySchema := newArraySchema(uint64TypeVar.getSchema())
-	float32ArraySchema := newArraySchema(float32TypeVar.getSchema())
-	float64ArraySchema := newArraySchema(float64TypeVar.getSchema())
+	stringArraySchema := spec.ArrayProperty(stringTypeVar.getSchema())
+	boolArraySchema := spec.ArrayProperty(boolTypeVar.getSchema())
+	intArraySchema := spec.ArrayProperty(intTypeVar.getSchema())
+	int8ArraySchema := spec.ArrayProperty(int8TypeVar.getSchema())
+	int16ArraySchema := spec.ArrayProperty(int16TypeVar.getSchema())
+	int32ArraySchema := spec.ArrayProperty(int32TypeVar.getSchema())
+	int64ArraySchema := spec.ArrayProperty(int64TypeVar.getSchema())
+	uintArraySchema := spec.ArrayProperty(uintTypeVar.getSchema())
+	uint8ArraySchema := spec.ArrayProperty(uint8TypeVar.getSchema())
+	uint16ArraySchema := spec.ArrayProperty(uint16TypeVar.getSchema())
+	uint32ArraySchema := spec.ArrayProperty(uint32TypeVar.getSchema())
+	uint64ArraySchema := spec.ArrayProperty(uint64TypeVar.getSchema())
+	float32ArraySchema := spec.ArrayProperty(float32TypeVar.getSchema())
+	float64ArraySchema := spec.ArrayProperty(float64TypeVar.getSchema())
 
 	validParams := make([]string, 0, len(basicTypes))
 	for k := range basicTypes {
@@ -1384,51 +1412,51 @@ func TestBuildArrayOrSliceSchema(t *testing.T) {
 	assert.Nil(t, schema, "schema should be nil when sub array bad type")
 
 	// Should return schema for multidimensional arrays made of each of the basic types
-	testBuildArrayOrSliceSchema(t, [1][1]string{}, newArraySchema(stringArraySchema))
-	testBuildArrayOrSliceSchema(t, [1][1]bool{}, newArraySchema(boolArraySchema))
-	testBuildArrayOrSliceSchema(t, [1][1]int{}, newArraySchema(intArraySchema))
-	testBuildArrayOrSliceSchema(t, [1][1]int8{}, newArraySchema(int8ArraySchema))
-	testBuildArrayOrSliceSchema(t, [1][1]int16{}, newArraySchema(int16ArraySchema))
-	testBuildArrayOrSliceSchema(t, [1][1]int32{}, newArraySchema(int32ArraySchema))
-	testBuildArrayOrSliceSchema(t, [1][1]int64{}, newArraySchema(int64ArraySchema))
-	testBuildArrayOrSliceSchema(t, [1][1]uint{}, newArraySchema(uintArraySchema))
-	testBuildArrayOrSliceSchema(t, [1][1]uint8{}, newArraySchema(uint8ArraySchema))
-	testBuildArrayOrSliceSchema(t, [1][1]uint16{}, newArraySchema(uint16ArraySchema))
-	testBuildArrayOrSliceSchema(t, [1][1]uint32{}, newArraySchema(uint32ArraySchema))
-	testBuildArrayOrSliceSchema(t, [1][1]uint64{}, newArraySchema(uint64ArraySchema))
-	testBuildArrayOrSliceSchema(t, [1][1]float32{}, newArraySchema(float32ArraySchema))
-	testBuildArrayOrSliceSchema(t, [1][1]float64{}, newArraySchema(float64ArraySchema))
-	testBuildArrayOrSliceSchema(t, [1][1]byte{}, newArraySchema(uint8ArraySchema))
-	testBuildArrayOrSliceSchema(t, [1][1]rune{}, newArraySchema(int32ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]string{}, spec.ArrayProperty(stringArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]bool{}, spec.ArrayProperty(boolArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]int{}, spec.ArrayProperty(intArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]int8{}, spec.ArrayProperty(int8ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]int16{}, spec.ArrayProperty(int16ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]int32{}, spec.ArrayProperty(int32ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]int64{}, spec.ArrayProperty(int64ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]uint{}, spec.ArrayProperty(uintArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]uint8{}, spec.ArrayProperty(uint8ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]uint16{}, spec.ArrayProperty(uint16ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]uint32{}, spec.ArrayProperty(uint32ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]uint64{}, spec.ArrayProperty(uint64ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]float32{}, spec.ArrayProperty(float32ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]float64{}, spec.ArrayProperty(float64ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]byte{}, spec.ArrayProperty(uint8ArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][1]rune{}, spec.ArrayProperty(int32ArraySchema))
 
 	// Should return schema for multidimensional slices made of each of the basic types
-	testBuildArrayOrSliceSchema(t, [][]bool{[]bool{}}, newArraySchema(boolArraySchema))
-	testBuildArrayOrSliceSchema(t, [][]int{[]int{}}, newArraySchema(intArraySchema))
-	testBuildArrayOrSliceSchema(t, [][]int8{[]int8{}}, newArraySchema(int8ArraySchema))
-	testBuildArrayOrSliceSchema(t, [][]int16{[]int16{}}, newArraySchema(int16ArraySchema))
-	testBuildArrayOrSliceSchema(t, [][]int32{[]int32{}}, newArraySchema(int32ArraySchema))
-	testBuildArrayOrSliceSchema(t, [][]int64{[]int64{}}, newArraySchema(int64ArraySchema))
-	testBuildArrayOrSliceSchema(t, [][]uint{[]uint{}}, newArraySchema(uintArraySchema))
-	testBuildArrayOrSliceSchema(t, [][]uint8{[]uint8{}}, newArraySchema(uint8ArraySchema))
-	testBuildArrayOrSliceSchema(t, [][]uint16{[]uint16{}}, newArraySchema(uint16ArraySchema))
-	testBuildArrayOrSliceSchema(t, [][]uint32{[]uint32{}}, newArraySchema(uint32ArraySchema))
-	testBuildArrayOrSliceSchema(t, [][]uint64{[]uint64{}}, newArraySchema(uint64ArraySchema))
-	testBuildArrayOrSliceSchema(t, [][]float32{[]float32{}}, newArraySchema(float32ArraySchema))
-	testBuildArrayOrSliceSchema(t, [][]float64{[]float64{}}, newArraySchema(float64ArraySchema))
-	testBuildArrayOrSliceSchema(t, [][]byte{[]byte{}}, newArraySchema(uint8ArraySchema))
-	testBuildArrayOrSliceSchema(t, [][]rune{[]rune{}}, newArraySchema(int32ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]bool{[]bool{}}, spec.ArrayProperty(boolArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]int{[]int{}}, spec.ArrayProperty(intArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]int8{[]int8{}}, spec.ArrayProperty(int8ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]int16{[]int16{}}, spec.ArrayProperty(int16ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]int32{[]int32{}}, spec.ArrayProperty(int32ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]int64{[]int64{}}, spec.ArrayProperty(int64ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]uint{[]uint{}}, spec.ArrayProperty(uintArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]uint8{[]uint8{}}, spec.ArrayProperty(uint8ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]uint16{[]uint16{}}, spec.ArrayProperty(uint16ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]uint32{[]uint32{}}, spec.ArrayProperty(uint32ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]uint64{[]uint64{}}, spec.ArrayProperty(uint64ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]float32{[]float32{}}, spec.ArrayProperty(float32ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]float64{[]float64{}}, spec.ArrayProperty(float64ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]byte{[]byte{}}, spec.ArrayProperty(uint8ArraySchema))
+	testBuildArrayOrSliceSchema(t, [][]rune{[]rune{}}, spec.ArrayProperty(int32ArraySchema))
 
 	// Should handle an array many dimensions
-	testBuildArrayOrSliceSchema(t, [1][2][3][4][5][6][7][8]string{}, newArraySchema(newArraySchema(newArraySchema(newArraySchema(newArraySchema(newArraySchema(newArraySchema(stringArraySchema))))))))
+	testBuildArrayOrSliceSchema(t, [1][2][3][4][5][6][7][8]string{}, spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(stringArraySchema))))))))
 
 	// Should handle a slice of many dimensions
-	testBuildArrayOrSliceSchema(t, [][][][][][][][]string{[][][][][][][]string{}}, newArraySchema(newArraySchema(newArraySchema(newArraySchema(newArraySchema(newArraySchema(newArraySchema(stringArraySchema))))))))
+	testBuildArrayOrSliceSchema(t, [][][][][][][][]string{[][][][][][][]string{}}, spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(spec.ArrayProperty(stringArraySchema))))))))
 
 	// Should handle an array of slice
-	testBuildArrayOrSliceSchema(t, [1][]string{}, newArraySchema(stringArraySchema))
+	testBuildArrayOrSliceSchema(t, [1][]string{}, spec.ArrayProperty(stringArraySchema))
 
 	// Should handle a slice of array
-	testBuildArrayOrSliceSchema(t, [][1]string{[1]string{}}, newArraySchema(stringArraySchema))
+	testBuildArrayOrSliceSchema(t, [][1]string{[1]string{}}, spec.ArrayProperty(stringArraySchema))
 
 	// Should return error when multidimensional array/slice/array is bad
 	badMixedArr := [1][][0]string{}
@@ -1852,7 +1880,7 @@ func TestGetArgs(t *testing.T) {
 	// Should return empty array when contract function takes no params
 	setContractFunctionParams(&cf, nil, []reflect.Type{})
 
-	callGetArgsAndBasicTest(t, cf, ctx, testParams)
+	callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, testParams)
 
 	// Should return array using passed parameters when contract function takes same number of params as sent
 	setContractFunctionParams(&cf, nil, []reflect.Type{
@@ -1861,7 +1889,7 @@ func TestGetArgs(t *testing.T) {
 		stringRefType,
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, testParams)
+	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, testParams)
 
 	testReflectValueEqualSlice(t, values, testParams)
 
@@ -1871,7 +1899,7 @@ func TestGetArgs(t *testing.T) {
 		stringRefType,
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, testParams)
+	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, testParams)
 
 	testReflectValueEqualSlice(t, values, testParams)
 
@@ -1883,7 +1911,7 @@ func TestGetArgs(t *testing.T) {
 		stringRefType,
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, testParams)
+	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, testParams)
 
 	testReflectValueEqualSlice(t, values, append(testParams, ""))
 
@@ -1895,7 +1923,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf([3]int{}),
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, testParams)
+	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, testParams)
 
 	testReflectValueEqualSlice(t, values, append(testParams, "[0 0 0]")) // <- array formatted as sprintf turns to string
 
@@ -1907,14 +1935,14 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf([]string{}),
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, testParams)
+	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, testParams)
 
 	testReflectValueEqualSlice(t, values, append(testParams, "[]"))
 
 	// Should include ctx in returned values and no params when function only takes ctx
 	setContractFunctionParams(&cf, basicContextPtrType, []reflect.Type{})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, testParams)
+	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, testParams)
 
 	_, ok = values[0].Interface().(*TransactionContext)
 
@@ -1927,7 +1955,7 @@ func TestGetArgs(t *testing.T) {
 		stringRefType,
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, testParams)
+	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, testParams)
 
 	_, ok = values[0].Interface().(*TransactionContext)
 
@@ -1938,7 +1966,7 @@ func TestGetArgs(t *testing.T) {
 	// Should be using context passed
 	setContractFunctionParams(&cf, reflect.TypeOf(new(customContext)), []reflect.Type{})
 
-	values, err := getArgs(cf, reflect.ValueOf(new(customContext)), testParams)
+	values, err := getArgs(cf, reflect.ValueOf(new(customContext)), TransactionMetadata{}, testParams)
 
 	assert.Nil(t, err, "should not return an error for a valid cf")
 	assert.Equal(t, 1, len(values), "should return same length array list as number of fields plus 1 for context")
@@ -1954,7 +1982,7 @@ func TestGetArgs(t *testing.T) {
 		boolRefType,
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, []string{"true"})
+	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, []string{"true"})
 	testReflectValueEqualSlice(t, values, []bool{true})
 
 	// Should handle ints
@@ -1992,7 +2020,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf(byte(65)),
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, []string{"65"})
+	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, []string{"65"})
 	testReflectValueEqualSlice(t, values, []byte{65})
 
 	// Should handle runes
@@ -2000,7 +2028,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf(rune(65)),
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, []string{"65"})
+	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, []string{"65"})
 	testReflectValueEqualSlice(t, values, []rune{65})
 
 	// Should return an error if conversion errors
@@ -2008,7 +2036,7 @@ func TestGetArgs(t *testing.T) {
 		intRefType,
 	})
 
-	values, err = getArgs(cf, reflect.ValueOf(ctx), []string{"abc"})
+	values, err = getArgs(cf, reflect.ValueOf(ctx), TransactionMetadata{}, []string{"abc"})
 
 	assert.EqualError(t, err, "Param abc could not be converted to type int", "should have returned error when convert returns error")
 	assert.Nil(t, values, "should not have returned value list on error")
@@ -2018,7 +2046,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf([4]int{}),
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, []string{"[1,2,3,4]"})
+	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, []string{"[1,2,3,4]"})
 	testReflectValueEqualSlice(t, values, [][4]int{{1, 2, 3, 4}})
 
 	// Should handle multidimensional array of basic type
@@ -2026,7 +2054,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf([4][1]int{}),
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, []string{"[[1],[2],[3],[4]]"})
+	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, []string{"[[1],[2],[3],[4]]"})
 	testReflectValueEqualSlice(t, values, [][4][1]int{{{1}, {2}, {3}, {4}}})
 
 	// Should error when the array they pass is not the correct format
@@ -2034,7 +2062,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf([4]int{}),
 	})
 
-	values, err = getArgs(cf, reflect.ValueOf(ctx), []string{"[1,2,3,\"a\"]"})
+	values, err = getArgs(cf, reflect.ValueOf(ctx), TransactionMetadata{}, []string{"[1,2,3,\"a\"]"})
 	assert.EqualError(t, err, "Value [1,2,3,\"a\"] was not passed in expected format [4]int", "should have returned error when array conversion returns error")
 	assert.Nil(t, values, "should not have returned value list on error")
 
@@ -2043,7 +2071,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf([4][1]int{}),
 	})
 
-	values, err = getArgs(cf, reflect.ValueOf(ctx), []string{"[[1],[2],[3],[\"a\"]]"})
+	values, err = getArgs(cf, reflect.ValueOf(ctx), TransactionMetadata{}, []string{"[[1],[2],[3],[\"a\"]]"})
 	assert.EqualError(t, err, "Value [[1],[2],[3],[\"a\"]] was not passed in expected format [4][1]int", "should have returned error when array conversion returns error")
 	assert.Nil(t, values, "should not have returned value list on error")
 
@@ -2052,7 +2080,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf([4][]int{}),
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, []string{"[[1, 2],[3],[4],[5]]"})
+	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, []string{"[[1, 2],[3],[4],[5]]"})
 	testReflectValueEqualSlice(t, values, [][4][]int{{{1, 2}, {3}, {4}, {5}}})
 
 	// Should handle a slice of arrays of a basic type
@@ -2060,8 +2088,24 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf([][4]int{}),
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, []string{"[[1,2,3,4]]"})
+	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, []string{"[[1,2,3,4]]"})
 	testReflectValueEqualSlice(t, values, [][][4]int{{{1, 2, 3, 4}}})
+
+	// Should error when a parameter given doesn't match the schema
+	setContractFunctionParams(&cf, nil, []reflect.Type{
+		intRefType,
+	})
+
+	txMetadata := TransactionMetadata{}
+	paramsMetadata := ParameterMetadata{}
+	min := float64(0)
+	paramsMetadata.Schema.Minimum = &min
+	txMetadata.Parameters = make([]ParameterMetadata, 1)
+	txMetadata.Parameters[0] = paramsMetadata
+
+	values, err = getArgs(cf, reflect.ValueOf(ctx), txMetadata, []string{"-1"})
+	assert.Nil(t, values, "should nto return values when parameter data bad")
+	assert.Contains(t, err.Error(), "did not match schema", "should error when schema bad")
 }
 
 func testHandleResponse(t *testing.T, successReturn reflect.Type, errorReturn bool, response []reflect.Value, expectedString string, expectedError error) {
@@ -2196,7 +2240,7 @@ func TestCall(t *testing.T) {
 	cf = newContractFunctionFromFunc(mc.UsesContext, basicContextPtrType)
 
 	expectedStr, expectedErr = mc.UsesContext(ctx, standardAssetID, standardValue)
-	actualStr, actualErr = cf.call(reflect.ValueOf(ctx), standardAssetID, standardValue)
+	actualStr, actualErr = cf.call(reflect.ValueOf(ctx), TransactionMetadata{}, standardAssetID, standardValue)
 
 	assert.Equal(t, expectedStr, actualStr, "Should have returned string as a regular call to UsesContext would")
 	assert.Equal(t, expectedErr, actualErr, "Should have returned error as a regular call to UsesContext would")
@@ -2204,7 +2248,7 @@ func TestCall(t *testing.T) {
 	// Should call function of contract function with correct params and return expected values for function returning nothing
 	cf = newContractFunctionFromFunc(mc.ReturnsNothing, basicContextPtrType)
 
-	actualStr, actualErr = cf.call(reflect.ValueOf(ctx))
+	actualStr, actualErr = cf.call(reflect.ValueOf(ctx), TransactionMetadata{})
 
 	assert.Equal(t, "", actualStr, "Should have returned blank string")
 	assert.Nil(t, actualErr, "Should have returned nil")
@@ -2214,7 +2258,7 @@ func TestCall(t *testing.T) {
 
 	expectedStr = mc.ReturnsString()
 
-	actualStr, actualErr = cf.call(reflect.ValueOf(ctx))
+	actualStr, actualErr = cf.call(reflect.ValueOf(ctx), TransactionMetadata{})
 
 	assert.Equal(t, expectedStr, actualStr, "Should have returned string as regular call to ReturnsString would")
 	assert.Nil(t, actualErr, "Should have returned nil")
@@ -2224,7 +2268,7 @@ func TestCall(t *testing.T) {
 
 	expectedStr = mc.UsesBasics("some string", true, 123, 45, 6789, 101112, 131415, 123, 45, 6789, 101112, 131415, 1.1, 2.2, 65, 66)
 
-	actualStr, actualErr = cf.call(reflect.ValueOf(ctx), "some string", "true", "123", "45", "6789", "101112", "131415", "123", "45", "6789", "101112", "131415", "1.1", "2.2", "65", "66")
+	actualStr, actualErr = cf.call(reflect.ValueOf(ctx), TransactionMetadata{}, "some string", "true", "123", "45", "6789", "101112", "131415", "123", "45", "6789", "101112", "131415", "1.1", "2.2", "65", "66")
 
 	assert.Equal(t, expectedStr, actualStr, "Should have returned string as regular call to ReturnsString would")
 	assert.Nil(t, actualErr, "Should have returned nil")
@@ -2234,7 +2278,7 @@ func TestCall(t *testing.T) {
 
 	expectedErr = mc.ReturnsError()
 
-	actualStr, actualErr = cf.call(reflect.ValueOf(ctx))
+	actualStr, actualErr = cf.call(reflect.ValueOf(ctx), TransactionMetadata{})
 
 	assert.Equal(t, "", actualStr, "Should have returned blank string")
 	assert.EqualError(t, actualErr, expectedErr.Error(), "Should have returned error as a regular call to ReturnsError would")
@@ -2244,7 +2288,7 @@ func TestCall(t *testing.T) {
 
 	expectedErr = errors.New("Value [1] was not passed in expected format [1]string")
 
-	actualStr, actualErr = cf.call(reflect.ValueOf(ctx), "[1]")
+	actualStr, actualErr = cf.call(reflect.ValueOf(ctx), TransactionMetadata{}, "[1]")
 
 	assert.Equal(t, "", actualStr, "Should have returned blank string")
 	assert.EqualError(t, actualErr, expectedErr.Error(), "Should have returned error from getArgs would")
@@ -2410,266 +2454,164 @@ func TestGetMetadata(t *testing.T) {
 
 // ============== metadata.go ==============
 func TestGetJSONSchema(t *testing.T) {
-	schemaLoader := gojsonschema.NewBytesLoader([]byte(GetJSONSchema()))
-	_, err := gojsonschema.NewSchema(schemaLoader)
+	// should read file
+	file, _ := readLocalFile("schema/schema.json")
 
-	assert.Nil(t, err, "value returned by GetJSONSchema should be a valid JSON schema")
+	assert.Equal(t, GetJSONSchema(), string(file), "should retrieve schema file")
+
+	// should panic when can't read file
+	oldIoUtilHelper := ioutilHelper
+	ioutilHelper = ioUtilReadFileTestStr{}
+
+	assert.PanicsWithValue(t, "Unable to read JSON schema. Error: some error", func() { GetJSONSchema() }, "should panic when readLocalFile errors")
+
+	ioutilHelper = oldIoUtilHelper
 }
 
-func TestSchemaOrBooleanMarshalJSON(t *testing.T) {
-	var sob SchemaOrBoolean
-	var marshalBytes []byte
-	var marshalErr error
+func TestAppend(t *testing.T) {
+	var ccm ContractChaincodeMetadata
 
-	var expectedBytes []byte
-	var expectedErr error
+	source := ContractChaincodeMetadata{}
+	source.Info = spec.Info{}
+	source.Info.Title = "A title"
+	source.Info.Version = "Some version"
 
-	// Should return bytes for Boolean when Schema nil
-	sob = SchemaOrBoolean{}
-	sob.Boolean = true
+	someContract := ContractMetadata{}
+	someContract.Name = "some contract"
 
-	marshalBytes, marshalErr = sob.MarshalJSON()
-	expectedBytes, expectedErr = json.Marshal(sob.Boolean)
+	source.Contracts = make(map[string]ContractMetadata)
+	source.Contracts["some contract"] = someContract
 
-	assert.Equal(t, expectedBytes, marshalBytes, "should return json marshal for boolean")
-	assert.Equal(t, expectedErr, marshalErr, "should return json marshal for boolean")
+	someComponent := ObjectMetadata{}
+	someComponent.ID = "some special asset"
 
-	// Should return bytes for Schema when Schema not nil
-	schema := new(Schema)
-	schema.Type = []string{"string"}
+	source.Components = ComponentMetadata{}
+	source.Components.Schemas = make(map[string]ObjectMetadata)
+	source.Components.Schemas["some component"] = someComponent
 
-	sob = SchemaOrBoolean{}
-	sob.Schema = schema
+	// should use the source info when info is blank
+	ccm = ContractChaincodeMetadata{}
+	ccm.append(source)
 
-	marshalBytes, marshalErr = sob.MarshalJSON()
-	expectedBytes, expectedErr = json.Marshal(sob.Schema)
+	assert.Equal(t, ccm.Info, source.Info, ccm.Info, "should have used source info when info blank")
 
-	assert.Equal(t, expectedBytes, marshalBytes, "should return json marshal for schema")
-	assert.Equal(t, expectedErr, marshalErr, "should return json marshal for schema")
+	// should use own info when info set
+	ccm = ContractChaincodeMetadata{}
+	ccm.Info = spec.Info{}
+	ccm.Info.Title = "An existing title"
+	ccm.Info.Version = "Some existing version"
+
+	someInfo := ccm.Info
+
+	ccm.append(source)
+
+	assert.Equal(t, someInfo, ccm.Info, "should have used own info when info existing")
+	assert.NotEqual(t, source.Info, ccm.Info, "should not use source info when info exists")
+
+	// should use the source contract when contract is 0 length and nil
+	ccm = ContractChaincodeMetadata{}
+	ccm.append(source)
+
+	assert.Equal(t, source.Contracts, ccm.Contracts, "should have used source info when contract 0 length map")
+
+	// should use the source contract when contract is 0 length and not nil
+	ccm = ContractChaincodeMetadata{}
+	ccm.Contracts = make(map[string]ContractMetadata)
+	ccm.append(source)
+
+	assert.Equal(t, source.Contracts, ccm.Contracts, "should have used source info when contract 0 length map")
+
+	// should use own contract when contract greater than 1
+	anotherContract := ContractMetadata{}
+	anotherContract.Name = "some contract"
+
+	ccm = ContractChaincodeMetadata{}
+	ccm.Contracts = make(map[string]ContractMetadata)
+	ccm.Contracts["another contract"] = anotherContract
+
+	contractMap := ccm.Contracts
+
+	assert.Equal(t, contractMap, ccm.Contracts, "should have used own contracts when contracts existing")
+	assert.NotEqual(t, source.Contracts, ccm.Contracts, "should not have used source contracts when existing contracts")
+
+	// should use source components when components is empty
+	ccm = ContractChaincodeMetadata{}
+	ccm.append(source)
+
+	assert.Equal(t, ccm.Components, source.Components, "should use sources components")
+
+	// should use own components when components is empty
+	anotherComponent := ObjectMetadata{}
+	anotherComponent.ID = "another special asset"
+
+	ccm = ContractChaincodeMetadata{}
+	ccm.Components = ComponentMetadata{}
+	ccm.Components.Schemas = make(map[string]ObjectMetadata)
+	ccm.Components.Schemas["another component"] = anotherComponent
+
+	ccmComponent := ccm.Components
+
+	ccm.append(source)
+
+	assert.Equal(t, ccmComponent, ccm.Components, "should have used own components")
+	assert.NotEqual(t, source.Components, ccm.Components, "should not be same as source components")
 }
 
-func TestSchemaOrBooleanUnmarshalJSON(t *testing.T) {
-	var sob *SchemaOrBoolean
-	var err error
-
-	// Should set Schema when schema json sent
-
-	expectedSchema := new(Schema)
-	expectedSchema.Type = []string{"object"}
-	expectedSchema.Format = "some format"
-
-	testJSON, _ := json.Marshal(expectedSchema)
-
-	sob = new(SchemaOrBoolean)
-	err = sob.UnmarshalJSON(testJSON)
-
-	assert.Nil(t, err, "should not error for valid schema json")
-	assert.Equal(t, sob.Schema, expectedSchema, "should set schema to schema")
-
-	// Should set boolean when boolean json sent
-	sob = new(SchemaOrBoolean)
-	err = sob.UnmarshalJSON([]byte("true"))
-
-	assert.Nil(t, err, "should not return error for valid boolean true value")
-	assert.True(t, sob.Boolean, "should have set boolean value when bytes sent json for true bool")
-
-	sob = new(SchemaOrBoolean)
-	err = sob.UnmarshalJSON([]byte("false"))
-
-	assert.Nil(t, err, "should not return error for valid boolean false value")
-	assert.False(t, sob.Boolean, "should have set boolean value when bytes sent json for false bool")
-
-	// Should return error when bytes neither boolean or schema
-	sob = new(SchemaOrBoolean)
-	err = sob.UnmarshalJSON([]byte("123"))
-
-	assert.EqualError(t, err, "Can only unmarshal to SchemaOrBoolean if value is boolean or Schema format")
-
-	// Should return error when invalid JSON
-	sob = new(SchemaOrBoolean)
-
-	expectedErr := json.Unmarshal([]byte("bad json"), "useless value")
-	err = sob.UnmarshalJSON([]byte("bad json"))
-
-	assert.Equal(t, expectedErr, err, "should have an error value when bad JSON")
-}
-
-func TestSchemaOrArrayMarshalJSON(t *testing.T) {
-	var soa SchemaOrArray
-	var marshalBytes []byte
-	var marshalErr error
-
-	var expectedBytes []byte
-	var expectedErr error
-
-	var schema *Schema
-
-	// Should return bytes for Schema when Schema not nil
-	schema = new(Schema)
-	schema.Type = []string{"string"}
-
-	soa = SchemaOrArray{}
-	soa.Schema = schema
-
-	marshalBytes, marshalErr = soa.MarshalJSON()
-	expectedBytes, expectedErr = json.Marshal(soa.Schema)
-
-	assert.Equal(t, expectedBytes, marshalBytes, "should return json marshal for schema")
-	assert.Equal(t, expectedErr, marshalErr, "should return json marshal for schema")
-
-	// Should return bytes for schema array when schema nil
-	schema = new(Schema)
-	schema.Type = []string{"string"}
-
-	soa = SchemaOrArray{}
-	soa.SchemaArray = []*Schema{schema}
-
-	marshalBytes, marshalErr = soa.MarshalJSON()
-	expectedBytes, expectedErr = json.Marshal(soa.SchemaArray)
-
-	assert.Equal(t, expectedBytes, marshalBytes, "should return json marshal for schemaArray")
-	assert.Equal(t, expectedErr, marshalErr, "should return json marshal for schemaArray")
-}
-
-func TestSchemaOrArrayUnmarshalJSON(t *testing.T) {
-	var soa *SchemaOrArray
-	var err error
-	var testJSON []byte
-
-	expectedSchema := new(Schema)
-	expectedSchema.Type = []string{"object"}
-	expectedSchema.Format = "some format"
-
-	// Should set Schema when schema json sent
-	testJSON, _ = json.Marshal(expectedSchema)
-
-	soa = new(SchemaOrArray)
-	err = soa.UnmarshalJSON(testJSON)
-
-	assert.Nil(t, err, "should not error for valid schema json")
-	assert.Equal(t, soa.Schema, expectedSchema, "should set schema to schema")
-
-	// Should set schema array when schema array json sent
-	expectedSchemaArray := []*Schema{
-		expectedSchema,
-	}
-
-	testJSON, _ = json.Marshal(expectedSchemaArray)
-
-	soa = new(SchemaOrArray)
-	err = soa.UnmarshalJSON(testJSON)
-
-	assert.Nil(t, err, "should not return error for valid boolean true value")
-	assert.Equal(t, soa.SchemaArray, expectedSchemaArray, "should set schemaArray to schemaArray from json")
-
-	// Should return error when bytes neither boolean or schema
-	soa = new(SchemaOrArray)
-	err = soa.UnmarshalJSON([]byte("123"))
-
-	assert.EqualError(t, err, "Can only unmarshal to SchemaOrArray if value is Schema format or array of Schema formats")
-}
-
-func TestStringOrArrayMarshalJSON(t *testing.T) {
-	var soa StringOrArray
-	var marshalBytes []byte
-	var marshalErr error
-
-	var expectedBytes []byte
-	var expectedErr error
-
-	// Should return bytes for string when array is length 1
-	soa = []string{"abc"}
-
-	marshalBytes, marshalErr = soa.MarshalJSON()
-	expectedBytes, expectedErr = json.Marshal([]string(soa)[0])
-
-	assert.Equal(t, expectedBytes, marshalBytes, "should return json marshal for single string")
-	assert.Equal(t, expectedErr, marshalErr, "should return json marshal for single string")
-
-	// Should return bytes for array when array is length > 1
-	soa = []string{"abc", "def"}
-
-	marshalBytes, marshalErr = soa.MarshalJSON()
-	expectedBytes, expectedErr = json.Marshal([]string(soa))
-
-	assert.Equal(t, expectedBytes, marshalBytes, "should return json marshal for array")
-	assert.Equal(t, expectedErr, marshalErr, "should return json marshal for array")
-}
-
-func TestStringOrArrayUnmarshalJSON(t *testing.T) {
-	var soa StringOrArray
-	var err error
-
-	// Should create stringOrArray when string sent as JSON
-	soa.UnmarshalJSON([]byte("\"abc\""))
-
-	assert.Nil(t, err, "should not error for valid schema json")
-	assert.Equal(t, []string(soa), []string{"abc"}, "should set string json as single el array")
-
-	// // Should set boolean when array json sent as JSON
-	soa.UnmarshalJSON([]byte("[\"abc\", \"def\"]"))
-
-	assert.Nil(t, err, "should not error for valid schema json")
-	assert.Equal(t, []string(soa), []string{"abc", "def"}, "should set array json as multi el array")
-
-	// Should return error when bytes neither boolean or schema
-	err = soa.UnmarshalJSON([]byte("123"))
-
-	assert.EqualError(t, err, "Can only unmarshal to StringOrArray if value is []string or string")
-
-	// Should return error when invalid JSON
-	soa = []string{"abc", "def"}
-
-	expectedErr := json.Unmarshal([]byte("bad json"), "useless value")
-	err = soa.UnmarshalJSON([]byte("bad json"))
-
-	assert.Equal(t, expectedErr, err, "should have an error value when bad JSON")
-}
-
-func TestGenerateMetadata(t *testing.T) {
-	cc := ContractChaincode{}
-
-	// ============================
-	// metadata file tests
-	// ============================
-
+func TestReadMetadataFile(t *testing.T) {
 	var filepath string
 	var metadataBytes []byte
+
+	oldOsHelper := osHelper
+
+	// Should return empty metadata when execute not found
+	osHelper = osExcTestStr{}
+
+	assert.Equal(t, ContractChaincodeMetadata{}, readMetadataFile(), "should return blank metadata when cannot read file due to exec error")
+
+	osHelper = oldOsHelper
+
+	// Should return empty metadata when file does not exist
+	osHelper = osStatTestStr{}
+
+	assert.Equal(t, ContractChaincodeMetadata{}, readMetadataFile(), "should return blank metadata when cannot read file due to exec error")
+
+	osHelper = oldOsHelper
 
 	// Should panic when cannot read file but it exists
 	filepath = createMetadataJSONFile([]byte("some file contents"), 0000)
 	_, readfileErr := ioutil.ReadFile(filepath)
-	assert.PanicsWithValue(t, fmt.Sprintf("Failed to generate metadata. Could not read file %s. %s", filepath, readfileErr), func() { generateMetadata(cc) }, "should panic when cannot read file but it exists")
+	assert.PanicsWithValue(t, fmt.Sprintf("Failed to get existing metadata. Could not read file %s. %s", filepath, readfileErr), func() { readMetadataFile() }, "should panic when cannot read file but it exists")
 	cleanupMetadataJSONFile()
 
 	// should panic when file does not match schema
 	metadataBytes = []byte("{\"some\":\"json\"}")
 
 	filepath = createMetadataJSONFile(metadataBytes, os.ModePerm)
-	schemaLoader := gojsonschema.NewBytesLoader([]byte(GetJSONSchema()))
-	metadataLoader := gojsonschema.NewBytesLoader(metadataBytes)
+	schema := new(spec.Schema)
+	json.Unmarshal([]byte(GetJSONSchema()), schema)
 
-	result, _ := gojsonschema.Validate(schemaLoader, metadataLoader)
+	metadata := map[string]interface{}{}
+	json.Unmarshal(metadataBytes, &metadata)
 
-	var errors string
+	err := validate.AgainstSchema(schema, metadata, strfmt.Default)
 
-	for index, desc := range result.Errors() {
-		errors = errors + "\n" + strconv.Itoa(index+1) + ".\t" + desc.String()
-	}
-
-	assert.PanicsWithValue(t, fmt.Sprintf("Failed to generate metadata. Given file did not match schema: %s", errors), func() { generateMetadata(cc) }, "should panic when file does not meet schema")
+	assert.PanicsWithValue(t, fmt.Sprintf("Failed to get existing metadata. Given file did not match schema: %s", err.Error()), func() { readMetadataFile() }, "should panic when file does not meet schema")
 	cleanupMetadataJSONFile()
 
 	// should use metadata file data
 	metadataBytes = []byte("{\"info\":{\"title\":\"my contract\",\"version\":\"0.0.1\"},\"contracts\":{},\"components\":{}}")
+	contractChaincodeMetadata := ContractChaincodeMetadata{}
+
+	json.Unmarshal(metadataBytes, &contractChaincodeMetadata)
 
 	filepath = createMetadataJSONFile(metadataBytes, os.ModePerm)
-	assert.Equal(t, string(metadataBytes), generateMetadata(cc), "should return metadata from file")
+	assert.Equal(t, contractChaincodeMetadata, readMetadataFile(), "should return metadata from file")
 	cleanupMetadataJSONFile()
+}
 
-	// ============================
-	// Non metadata file tests
-	// ============================
+// ============== contract_chaincode_def.go ==============
+func TestReflectMetadata(t *testing.T) {
+	cc := ContractChaincode{}
 
 	complexType := reflect.TypeOf(complex64(1))
 
@@ -2693,7 +2635,7 @@ func TestGenerateMetadata(t *testing.T) {
 
 	_, getSchemaErr = getSchema(complexType)
 
-	assert.PanicsWithValue(t, fmt.Sprintf("Failed to generate metadata. Invalid function parameter type. %s", getSchemaErr), func() { generateMetadata(cc) }, "should have panicked with bad contract function params")
+	assert.PanicsWithValue(t, fmt.Sprintf("Failed to generate metadata. Invalid function parameter type. %s", getSchemaErr), func() { cc.reflectMetadata() }, "should have panicked with bad contract function params")
 
 	// Should panic if get schema panics
 	anotherBadFunctionContractFunction := new(contractFunction)
@@ -2715,11 +2657,11 @@ func TestGenerateMetadata(t *testing.T) {
 
 	_, getSchemaErr = getSchema(complexType)
 
-	assert.PanicsWithValue(t, fmt.Sprintf("Failed to generate metadata. Invalid function success return type. %s", getSchemaErr), func() { generateMetadata(cc) }, "should have panicked with bad contract function success return")
+	assert.PanicsWithValue(t, fmt.Sprintf("Failed to generate metadata. Invalid function success return type. %s", getSchemaErr), func() { cc.reflectMetadata() }, "should have panicked with bad contract function success return")
 
 	// setup for not panicking tests
 
-	errorSchema := Schema{}
+	errorSchema := spec.Schema{}
 	errorSchema.Type = []string{"object"}
 	errorSchema.Format = "error"
 
@@ -2769,6 +2711,11 @@ func TestGenerateMetadata(t *testing.T) {
 	anotherFunctionMetadata.Name = "AnotherFunction"
 
 	var expectedMetadata ContractChaincodeMetadata
+	var contractInfo spec.Info
+
+	chaincodeInfo := spec.Info{}
+	chaincodeInfo.Title = "undefined"
+	chaincodeInfo.Version = "latest"
 
 	scFuncs := make(map[string]*contractFunction)
 	scFuncs["SomeFunction"] = someFunctionContractFunction
@@ -2784,28 +2731,42 @@ func TestGenerateMetadata(t *testing.T) {
 		cscFuncs, nil, nil, nil, nil, nil,
 	}
 
-	// Should handle generating metadata for a single name with default namespacing
+	// Should handle generating metadata for a single name
 	cc.contracts = map[string]contractChaincodeContract{
-		"": scccn,
+		"SomeContract": scccn,
 	}
+
+	contractInfo = spec.Info{}
+	contractInfo.Title = "SomeContract"
+	contractInfo.Version = "latest"
+
 	expectedMetadata = ContractChaincodeMetadata{}
+	expectedMetadata.Info = chaincodeInfo
 	expectedMetadata.Contracts = make(map[string]ContractMetadata)
-	expectedMetadata.Contracts[""] = ContractMetadata{
-		Name: "",
+	expectedMetadata.Contracts["SomeContract"] = ContractMetadata{
+		Info: contractInfo,
+		Name: "SomeContract",
 		Transactions: []TransactionMetadata{
 			someFunctionMetadata,
 		},
 	}
 
-	testMetadata(t, generateMetadata(cc), expectedMetadata)
+	testMetadata(t, cc.reflectMetadata(), expectedMetadata)
 
-	// Should handle generating metadata for a single name with custom name and order functions alphabetically on ID
+	// Should handle generating metadata functions alphabetically on ID
+	contractInfo = spec.Info{}
+	contractInfo.Title = "customname"
+	contractInfo.Version = "latest"
+
 	cc.contracts = map[string]contractChaincodeContract{
 		"customname": cscccn,
 	}
+
 	expectedMetadata = ContractChaincodeMetadata{}
+	expectedMetadata.Info = chaincodeInfo
 	expectedMetadata.Contracts = make(map[string]ContractMetadata)
 	expectedMetadata.Contracts["customname"] = ContractMetadata{
+		Info: contractInfo,
 		Name: "customname",
 		Transactions: []TransactionMetadata{
 			anotherFunctionMetadata,
@@ -2813,22 +2774,36 @@ func TestGenerateMetadata(t *testing.T) {
 		},
 	}
 
-	testMetadata(t, generateMetadata(cc), expectedMetadata)
+	testMetadata(t, cc.reflectMetadata(), expectedMetadata)
 
 	// should handle generating metadata for multiple names
 	cc.contracts = map[string]contractChaincodeContract{
-		"":           scccn,
+		"somename":   scccn,
 		"customname": cscccn,
 	}
+
 	expectedMetadata = ContractChaincodeMetadata{}
+	expectedMetadata.Info = chaincodeInfo
 	expectedMetadata.Contracts = make(map[string]ContractMetadata)
-	expectedMetadata.Contracts[""] = ContractMetadata{
-		Name: "",
+
+	contractInfo = spec.Info{}
+	contractInfo.Title = "somename"
+	contractInfo.Version = "latest"
+
+	expectedMetadata.Contracts["somename"] = ContractMetadata{
+		Info: contractInfo,
+		Name: "somename",
 		Transactions: []TransactionMetadata{
 			someFunctionMetadata,
 		},
 	}
+
+	contractInfo = spec.Info{}
+	contractInfo.Title = "customname"
+	contractInfo.Version = "latest"
+
 	expectedMetadata.Contracts["customname"] = ContractMetadata{
+		Info: contractInfo,
 		Name: "customname",
 		Transactions: []TransactionMetadata{
 			anotherFunctionMetadata,
@@ -2836,37 +2811,38 @@ func TestGenerateMetadata(t *testing.T) {
 		},
 	}
 
-	testMetadata(t, generateMetadata(cc), expectedMetadata)
-
-	// Should use reflected metadata when getting executable location fails
-
-	oldOsHelper := osHelper
-	osHelper = osExcTestStr{}
-
-	metadataBytes = []byte("{\"info\":{\"title\":\"my contract\",\"version\":\"0.0.1\"},\"contracts\":[],\"components\":{}}")
-
-	filepath = createMetadataJSONFile(metadataBytes, os.ModePerm)
-
-	cc.contracts = map[string]contractChaincodeContract{
-		"customname": cscccn,
-	}
-	expectedMetadata = ContractChaincodeMetadata{}
-	expectedMetadata.Contracts = make(map[string]ContractMetadata)
-	expectedMetadata.Contracts["customname"] = ContractMetadata{
-		Name: "customname",
-		Transactions: []TransactionMetadata{
-			anotherFunctionMetadata,
-			someFunctionMetadata,
-		},
-	}
-
-	testMetadata(t, generateMetadata(cc), expectedMetadata)
-
-	cleanupMetadataJSONFile()
-	osHelper = oldOsHelper
+	testMetadata(t, cc.reflectMetadata(), expectedMetadata)
 }
 
-// ============== contract_chaincode_helpers.go ==============
+func TestAugmentMetadata(t *testing.T) {
+	someFunctionContractFunction := new(contractFunction)
+
+	scFuncs := make(map[string]*contractFunction)
+	scFuncs["SomeFunction"] = someFunctionContractFunction
+	scccn := contractChaincodeContract{
+		scFuncs, nil, nil, nil, nil, nil,
+	}
+
+	cc := ContractChaincode{}
+	cc.contracts = map[string]contractChaincodeContract{
+		"somename": scccn,
+	}
+
+	// Should blend file and reflected metadata
+	metadataBytes := []byte("{\"info\":{\"title\":\"my contract\",\"version\":\"0.0.1\"},\"contracts\":{},\"components\":{}}")
+
+	createMetadataJSONFile(metadataBytes, os.ModePerm)
+	cleanupMetadataJSONFile()
+
+	fileMetadata := readMetadataFile()
+	reflectedMetadata := cc.reflectMetadata()
+
+	cc.augmentMetadata()
+	fileMetadata.append(reflectedMetadata)
+
+	testMetadata(t, cc.metadata, fileMetadata)
+}
+
 func TestAddContract(t *testing.T) {
 	ciT := reflect.TypeOf((*ContractInterface)(nil)).Elem()
 	var fullExclude []string
@@ -2941,27 +2917,6 @@ func TestAddContract(t *testing.T) {
 	sc.afterTransaction = nil
 }
 
-func TestConvertC2CC(t *testing.T) {
-	sc := simpleTestContract{}
-
-	csc := simpleTestContract{}
-	csc.name = "customname"
-
-	// Should create a valid chaincode from a single contract with a default ns
-	testConvertCC(t, []simpleTestContract{sc})
-
-	// Should create a valid chaincode from a single contract with a custom ns
-	testConvertCC(t, []simpleTestContract{csc})
-
-	// Should create a valid chaincode from multiple smart contracts
-	testConvertCC(t, []simpleTestContract{sc, csc})
-
-	// Should panic when contract has function with same name as a Contract function but does not embed Contract and function is invalid
-	assert.PanicsWithValue(t, fmt.Sprintf("SetAfterTransaction contains invalid parameter type. Type interface {} is not valid. Expected one of the basic types %s, an array/slice of these, or one of these additional types %s", listBasicTypes(), basicContextPtrType.String()), func() { convertC2CC(new(Contract)) }, "should have panicked due to bad function format")
-}
-
-// ============== contract_chaincode_def.go ==============
-
 func TestCreateNewChaincode(t *testing.T) {
 	mc := new(myContract)
 
@@ -2981,4 +2936,24 @@ func TestInit(t *testing.T) {
 
 func TestInvoke(t *testing.T) {
 	testCallingContractFunctions(t, invokeType)
+}
+
+// ============== contract_chaincode_helpers.go ==============
+func TestConvertC2CC(t *testing.T) {
+	sc := simpleTestContract{}
+
+	csc := simpleTestContract{}
+	csc.name = "customname"
+
+	// Should create a valid chaincode from a single contract handling no ns
+	testConvertCC(t, []simpleTestContract{sc})
+
+	// Should create a valid chaincode from a single contract with a custom ns
+	testConvertCC(t, []simpleTestContract{csc})
+
+	// Should create a valid chaincode from multiple smart contracts
+	testConvertCC(t, []simpleTestContract{sc, csc})
+
+	// Should panic when contract has function with same name as a Contract function but does not embed Contract and function is invalid
+	assert.PanicsWithValue(t, fmt.Sprintf("SetAfterTransaction contains invalid parameter type. Type interface {} is not valid. Expected one of the basic types %s, an array/slice of these, or one of these additional types %s", listBasicTypes(), basicContextPtrType.String()), func() { convertC2CC(new(Contract)) }, "should have panicked due to bad function format")
 }

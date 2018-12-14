@@ -18,9 +18,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"strconv"
 
-	"github.com/xeipuuv/gojsonschema"
+	"github.com/go-openapi/strfmt"
+	"github.com/go-openapi/validate"
 )
 
 type contractFunctionParams struct {
@@ -262,25 +262,10 @@ func createArrayOrSlice(param string, objType reflect.Type) (reflect.Value, erro
 }
 
 func getArgs(fn contractFunction, ctx reflect.Value, supplementaryMetadata TransactionMetadata, params []string) ([]reflect.Value, error) {
-	var validationSchema string
+	var shouldValidate bool
 
 	if !reflect.DeepEqual(supplementaryMetadata, TransactionMetadata{}) {
-		validationSchema = `{
-			"$schema": "http://json-schema.org/draft-04/schema#",
-			"type": "object",
-			"title": "Hyperledger Fabric Contract Definition JSON Schema",
-			"required": [
-			  "value"
-			],
-			"properties": {
-			  "value": {
-				"$ref": "#/definitions/value"
-			  }
-			},
-			"definitions": {
-			  "value": %s
-			}
-		  }`
+		shouldValidate = true
 	}
 
 	values := []reflect.Value{}
@@ -322,29 +307,11 @@ func getArgs(fn contractFunction, ctx reflect.Value, supplementaryMetadata Trans
 			}
 		}
 
-		if validationSchema != "" {
-			paramSchema, _ := json.Marshal(supplementaryMetadata.Parameters[i].Schema)
+		if shouldValidate {
+			err := validate.AgainstSchema(&supplementaryMetadata.Parameters[i].Schema, converted.Interface(), strfmt.Default)
 
-			schemaLoader := gojsonschema.NewStringLoader(fmt.Sprintf(validationSchema, string(paramSchema)))
-
-			value := params[i]
-
-			if fieldType.Kind() == reflect.String {
-				value = fmt.Sprintf("\"%s\"", params[i])
-			}
-
-			metadataLoader := gojsonschema.NewStringLoader(fmt.Sprintf("{\"value\": %s}", value)) // WILL THIS HOLD UP TO PASSED JSON STRINGS OR ARRAYS OF STRINGS?
-
-			result, _ := gojsonschema.Validate(schemaLoader, metadataLoader)
-
-			if !result.Valid() {
-				var errors string
-
-				for index, desc := range result.Errors() {
-					errors = errors + "\n" + strconv.Itoa(index+1) + ".\t" + desc.String()
-				}
-
-				return nil, fmt.Errorf("Value passed for parameter \"%s\" did not match schema: %s", supplementaryMetadata.Parameters[i].Name, errors)
+			if err != nil {
+				return nil, fmt.Errorf("Value passed for parameter \"%s\" did not match schema: %s", supplementaryMetadata.Parameters[i].Name, err)
 			}
 		}
 

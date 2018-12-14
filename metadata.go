@@ -21,11 +21,11 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strconv"
 
 	"github.com/go-openapi/spec"
+	"github.com/go-openapi/strfmt"
+	"github.com/go-openapi/validate"
 	"github.com/hyperledger/fabric/core/chaincode/shim"
-	"github.com/xeipuuv/gojsonschema"
 )
 
 const metadataFolder = "contract-metadata"
@@ -34,17 +34,22 @@ const metadataFile = "metadata.json"
 var logger = shim.NewLogger("contractapi/metadata.go")
 
 // Helper for OS testing
-type osExc interface {
+type osHlp interface {
 	Executable() (string, error)
+	Stat(string) (os.FileInfo, error)
 }
 
-type osExcStr struct{}
+type osHlpStr struct{}
 
-func (o osExcStr) Executable() (string, error) {
+func (o osHlpStr) Executable() (string, error) {
 	return os.Executable()
 }
 
-var osHelper osExc = osExcStr{}
+func (o osHlpStr) Stat(name string) (os.FileInfo, error) {
+	return os.Stat(name)
+}
+
+var osHelper osHlp = osHlpStr{}
 
 // GetJSONSchema returns the JSON schema used for metadata
 func GetJSONSchema() string {
@@ -59,10 +64,10 @@ func GetJSONSchema() string {
 
 // ParameterMetadata details about a parameter used for a transaction
 type ParameterMetadata struct {
-	Description string           `json:"description,omitempty"`
-	Name        string           `json:"name"`
-	Required    bool             `json:"required,omitempty"`
-	Schema      spec.SchemaProps `json:"schema"`
+	Description string      `json:"description,omitempty"`
+	Name        string      `json:"name"`
+	Required    bool        `json:"required,omitempty"`
+	Schema      spec.Schema `json:"schema"`
 }
 
 // TransactionMetadata contains information on what makes up a transaction
@@ -75,35 +80,39 @@ type TransactionMetadata struct {
 
 // ContractMetadata contains information about what makes up a contract
 type ContractMetadata struct {
-	Info         spec.InfoProps        `json:"info,omitempty"`
+	Info         spec.Info             `json:"info,omitempty"`
 	Name         string                `json:"name"`
 	Transactions []TransactionMetadata `json:"transactions"`
 }
 
-// AssetMetadata description of an asset
-type AssetMetadata struct {
-	Name       string              `json:"name"`
+// ObjectMetadata description of an asset
+type ObjectMetadata struct {
+	ID         string              `json:"$id"`
 	Properties []ParameterMetadata `json:"properties"`
 }
 
 // ComponentMetadata does something
 type ComponentMetadata struct {
-	Schemas map[string]AssetMetadata `json:"schemas,omitempty"`
+	Schemas map[string]ObjectMetadata `json:"schemas,omitempty"`
 }
 
-// ContractChaincodeMetadata describes a chaincode made using the contractapi
+// ContractChaincodeMetadata describes a chaincode made using the contract api
 type ContractChaincodeMetadata struct {
-	Info       spec.InfoProps              `json:"info,omitempty"`
+	Info       spec.Info                   `json:"info,omitempty"`
 	Contracts  map[string]ContractMetadata `json:"contracts"`
 	Components ComponentMetadata           `json:"components"`
 }
 
 func (ccm *ContractChaincodeMetadata) append(source ContractChaincodeMetadata) {
-	if reflect.DeepEqual(ccm.Info, spec.InfoProps{}) {
+	if reflect.DeepEqual(ccm.Info, spec.Info{}) {
 		ccm.Info = source.Info
 	}
 
 	if len(ccm.Contracts) == 0 {
+		if ccm.Contracts == nil {
+			ccm.Contracts = make(map[string]ContractMetadata)
+		}
+
 		for key, value := range source.Contracts {
 			ccm.Contracts[key] = value
 		}
@@ -116,7 +125,6 @@ func (ccm *ContractChaincodeMetadata) append(source ContractChaincodeMetadata) {
 
 func readMetadataFile() ContractChaincodeMetadata {
 	fileMetadata := ContractChaincodeMetadata{}
-	fileMetadata.Contracts = make(map[string]ContractMetadata)
 
 	ex, execErr := osHelper.Executable()
 	if execErr != nil {
@@ -127,36 +135,33 @@ func readMetadataFile() ContractChaincodeMetadata {
 	exPath := filepath.Dir(ex)
 	metadataPath := filepath.Join(exPath, metadataFolder, metadataFile)
 
-	_, err := os.Stat(metadataPath)
+	_, err := osHelper.Stat(metadataPath)
+
+	logger.Error(err)
 
 	if os.IsNotExist(err) {
 		logger.Info("No metadata file supplied")
 		return fileMetadata
 	}
 
+	fileMetadata.Contracts = make(map[string]ContractMetadata)
+
 	metadataBytes, err := ioutil.ReadFile(metadataPath)
 
 	if err != nil {
-		panic(fmt.Sprintf("Failed to generate metadata. Could not read file %s. %s", metadataPath, err))
+		panic(fmt.Sprintf("Failed to get existing metadata. Could not read file %s. %s", metadataPath, err))
 	}
 
-	schemaLoader := gojsonschema.NewBytesLoader([]byte(GetJSONSchema()))
-	metadataLoader := gojsonschema.NewBytesLoader(metadataBytes)
+	schema := new(spec.Schema)
+	json.Unmarshal([]byte(GetJSONSchema()), schema)
 
-	result, err := gojsonschema.Validate(schemaLoader, metadataLoader)
+	metadata := map[string]interface{}{}
+	json.Unmarshal(metadataBytes, &metadata)
 
-	if result == nil {
-		panic(fmt.Sprintf("Error validating metadata file against schema. Is the file valid JSON?"))
-	}
+	err = validate.AgainstSchema(schema, metadata, strfmt.Default)
 
-	if !result.Valid() {
-		var errors string
-
-		for index, desc := range result.Errors() {
-			errors = errors + "\n" + strconv.Itoa(index+1) + ".\t" + desc.String()
-		}
-
-		panic(fmt.Sprintf("Failed to generate metadata. Given file did not match schema: %s", errors))
+	if err != nil {
+		panic(fmt.Sprintf("Failed to get existing metadata. Given file did not match schema: %s", err.Error()))
 	}
 
 	json.Unmarshal(metadataBytes, &fileMetadata)
