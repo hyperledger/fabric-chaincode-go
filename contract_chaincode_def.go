@@ -53,7 +53,7 @@ const SystemContractName = "org.hyperledger.fabric"
 // chaincode which provides functionality for getting the metadata of the chaincode. The generated
 // metadata is a JSON formatted MetadataContractChaincode containing each contract as a name and details
 // of the public functions. The names for parameters do not match those used in the functions instead they are
-// recorded as param0, param1, ..., paramN. If there exists a file contract-metadata/metadata.json then this
+// recorded as param0, param1, ..., paramN. If there exists a file META-INF/chaincode/metadata.json then this
 // will overwrite the generated metadata. The contents of this file must validate against the schema.
 func CreateNewChaincode(contracts ...ContractInterface) error {
 	return shim.Start(convertC2CC(contracts...))

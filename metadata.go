@@ -28,7 +28,7 @@ import (
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 )
 
-const metadataFolder = "contract-metadata"
+const metadataFolder = "META-INF/chaincode"
 const metadataFile = "metadata.json"
 
 var logger = shim.NewLogger("contractapi/metadata.go")
@@ -136,8 +136,6 @@ func readMetadataFile() ContractChaincodeMetadata {
 	metadataPath := filepath.Join(exPath, metadataFolder, metadataFile)
 
 	_, err := osHelper.Stat(metadataPath)
-
-	logger.Error(err)
 
 	if os.IsNotExist(err) {
 		logger.Info("No metadata file supplied")
