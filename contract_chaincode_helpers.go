@@ -21,7 +21,7 @@ import (
 
 var contractStringType = reflect.TypeOf(Contract{}).String()
 
-func convertC2CC(contracts ...ContractInterface) *ContractChaincode {
+func convertC2CC(contracts ...ContractInterface) ContractChaincode {
 	ciT := reflect.TypeOf((*ContractInterface)(nil)).Elem()
 	var ciMethods []string
 	for i := 0; i < ciT.NumMethod(); i++ {
@@ -37,7 +37,7 @@ func convertC2CC(contracts ...ContractInterface) *ContractChaincode {
 		}
 	}
 
-	cc := new(ContractChaincode)
+	cc := ContractChaincode{}
 	cc.contracts = make(map[string]contractChaincodeContract)
 
 	for _, contract := range contracts {

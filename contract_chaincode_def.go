@@ -27,6 +27,7 @@ import (
 )
 
 type contractChaincodeContract struct {
+	version                      string
 	functions                    map[string]*contractFunction
 	unknownTransaction           *contractFunction
 	beforeTransaction            *contractFunction
@@ -40,6 +41,8 @@ type ContractChaincode struct {
 	defaultContract string
 	contracts       map[string]contractChaincodeContract
 	metadata        ContractChaincodeMetadata
+	title           string
+	version         string
 }
 
 // SystemContractName the name of the system smart contract
@@ -48,15 +51,40 @@ const SystemContractName = "org.hyperledger.fabric"
 // CreateNewChaincode creates a new chaincode using contracts passed. The function parses each
 // of the passed functions and stores details about their make-up to be used by the chaincode.
 // Public functions of the contracts are stored an are made callable in the chaincode. The function
-// will panic if contracts are invalid e.g. public functions take in illegal types. If no panic occurs
-// the a new chaincode handling the contracts is started in the shim. A system contract is added to the
-// chaincode which provides functionality for getting the metadata of the chaincode. The generated
+// will panic if contracts are invalid e.g. public functions take in illegal types. A system contract is added
+// to the chaincode which provides functionality for getting the metadata of the chaincode. The generated
 // metadata is a JSON formatted MetadataContractChaincode containing each contract as a name and details
-// of the public functions. The names for parameters do not match those used in the functions instead they are
+// of the public functions. It also outlines version details for contracts and the chaincode. If these are blank
+// strings this is set to latest. The names for parameters do not match those used in the functions instead they are
 // recorded as param0, param1, ..., paramN. If there exists a file META-INF/chaincode/metadata.json then this
 // will overwrite the generated metadata. The contents of this file must validate against the schema.
-func CreateNewChaincode(contracts ...ContractInterface) error {
-	return shim.Start(convertC2CC(contracts...))
+func CreateNewChaincode(contracts ...ContractInterface) ContractChaincode {
+	return convertC2CC(contracts...)
+}
+
+// Start starts the chaincode in the fabric shim
+func (cc *ContractChaincode) Start() error {
+	return shim.Start(cc)
+}
+
+// GetTitle returns the set title
+func (cc *ContractChaincode) GetTitle() string {
+	return cc.title
+}
+
+// SetTitle sets the title
+func (cc *ContractChaincode) SetTitle(title string) {
+	cc.title = title
+}
+
+// GetVersion returns the set version
+func (cc *ContractChaincode) GetVersion() string {
+	return cc.version
+}
+
+// SetVersion sets the version
+func (cc *ContractChaincode) SetVersion(version string) {
+	cc.version = version
 }
 
 // Init is called during Instantiate transaction after the chaincode container
@@ -179,6 +207,11 @@ func (cc *ContractChaincode) addContract(contract ContractInterface, excludeFunc
 	ccn.transactionContextHandler = reflect.ValueOf(contract.GetTransactionContextHandler()).Elem().Type()
 	ccn.transactionContextPtrHandler = reflect.ValueOf(contract.GetTransactionContextHandler()).Type()
 	ccn.functions = make(map[string]*contractFunction)
+	ccn.version = contract.GetVersion()
+
+	if ccn.version == "" {
+		ccn.version = "latest"
+	}
 
 	scT := reflect.PtrTo(reflect.TypeOf(contract).Elem())
 	scV := reflect.ValueOf(contract).Elem().Addr()
@@ -220,13 +253,21 @@ func (cc *ContractChaincode) addContract(contract ContractInterface, excludeFunc
 func (cc *ContractChaincode) reflectMetadata() ContractChaincodeMetadata {
 	reflectedMetadata := ContractChaincodeMetadata{}
 	reflectedMetadata.Contracts = make(map[string]ContractMetadata)
-	reflectedMetadata.Info.Version = "latest"
-	reflectedMetadata.Info.Title = "undefined"
+	reflectedMetadata.Info.Version = cc.GetVersion()
+	reflectedMetadata.Info.Title = cc.GetTitle()
+
+	if reflectedMetadata.Info.Version == "" {
+		reflectedMetadata.Info.Version = "latest"
+	}
+
+	if reflectedMetadata.Info.Title == "" {
+		reflectedMetadata.Info.Title = "undefined"
+	}
 
 	for key, contract := range cc.contracts {
 		contractMetadata := ContractMetadata{}
 		contractMetadata.Name = key
-		contractMetadata.Info.Version = "latest"
+		contractMetadata.Info.Version = contract.version
 		contractMetadata.Info.Title = key
 
 		for key, fn := range contract.functions {

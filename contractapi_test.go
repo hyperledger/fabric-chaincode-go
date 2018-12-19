@@ -739,7 +739,7 @@ func createMetadataJSONFile(data []byte, permissions os.FileMode) string {
 	folderPath := filepath.Join(exPath, metadataFolder)
 	filePath := filepath.Join(folderPath, metadataFile)
 
-	os.Mkdir(folderPath, os.ModePerm)
+	os.MkdirAll(folderPath, os.ModePerm)
 	ioutil.WriteFile(filePath, data, permissions)
 
 	return filePath
@@ -797,6 +797,12 @@ func testContractChaincodeContractRepresentsContract(t *testing.T, ccns contract
 		assert.Nil(t, ccns.unknownTransaction, "should be nil when contract has no unknown transaction")
 	} else {
 		assert.Equal(t, ccns.unknownTransaction, newContractFunctionFromFunc(ut, transactionContextPtrHandler), "should have set correct unknown transaction when set")
+	}
+
+	if contract.GetVersion() == "" {
+		assert.Equal(t, "latest", ccns.version, "should set correct version when get version blank")
+	} else {
+		assert.Equal(t, contract.GetVersion(), ccns.version, "should set correct version when get version blank")
 	}
 
 	bt, err := contract.GetBeforeTransaction()
@@ -920,19 +926,19 @@ func testConvertCC(t *testing.T, testData []simpleTestContract) {
 	testMetadata(t, ccMetadata, expectedSysMetadata)
 }
 
-func callContractFunctionAndCheckError(t *testing.T, cc *ContractChaincode, arguments []string, callType string, expectedMessage string) {
+func callContractFunctionAndCheckError(t *testing.T, cc ContractChaincode, arguments []string, callType string, expectedMessage string) {
 	t.Helper()
 
 	callContractFunctionAndCheckResponse(t, cc, arguments, callType, expectedMessage, "error")
 }
 
-func callContractFunctionAndCheckSuccess(t *testing.T, cc *ContractChaincode, arguments []string, callType string, expectedMessage string) {
+func callContractFunctionAndCheckSuccess(t *testing.T, cc ContractChaincode, arguments []string, callType string, expectedMessage string) {
 	t.Helper()
 
 	callContractFunctionAndCheckResponse(t, cc, arguments, callType, expectedMessage, "success")
 }
 
-func callContractFunctionAndCheckResponse(t *testing.T, cc *ContractChaincode, arguments []string, callType string, expectedMessage string, expectedType string) {
+func callContractFunctionAndCheckResponse(t *testing.T, cc ContractChaincode, arguments []string, callType string, expectedMessage string, expectedType string) {
 	t.Helper()
 
 	args := [][]byte{}
@@ -941,7 +947,7 @@ func callContractFunctionAndCheckResponse(t *testing.T, cc *ContractChaincode, a
 		args = append(args, arg)
 	}
 
-	mockStub := shim.NewMockStub("smartContractTest", cc)
+	mockStub := shim.NewMockStub("smartContractTest", &cc)
 
 	var response peer.Response
 
@@ -2398,6 +2404,20 @@ func TestGetAfterTransaction(t *testing.T) {
 	assert.Equal(t, mc.ReturnsInt(), afterFn.(func() int)(), "function returned should be same value as set for after transaction")
 }
 
+func TestSetVersion(t *testing.T) {
+	c := Contract{}
+	c.SetVersion("some version")
+
+	assert.Equal(t, "some version", c.version, "should set the version")
+}
+
+func TestGetVersion(t *testing.T) {
+	c := Contract{}
+	c.version = "some version"
+
+	assert.Equal(t, "some version", c.GetVersion(), "should set the version")
+}
+
 func TestSetName(t *testing.T) {
 	mc := myContract{}
 
@@ -2573,7 +2593,7 @@ func TestReadMetadataFile(t *testing.T) {
 	// Should return empty metadata when file does not exist
 	osHelper = osStatTestStr{}
 
-	assert.Equal(t, ContractChaincodeMetadata{}, readMetadataFile(), "should return blank metadata when cannot read file due to exec error")
+	assert.Equal(t, ContractChaincodeMetadata{}, readMetadataFile(), "should return blank metadata when cannot read file as does not exist")
 
 	osHelper = oldOsHelper
 
@@ -2612,6 +2632,8 @@ func TestReadMetadataFile(t *testing.T) {
 // ============== contract_chaincode_def.go ==============
 func TestReflectMetadata(t *testing.T) {
 	cc := ContractChaincode{}
+	cc.title = "some title"
+	cc.version = "some version"
 
 	complexType := reflect.TypeOf(complex64(1))
 
@@ -2626,7 +2648,7 @@ func TestReflectMetadata(t *testing.T) {
 	bcFuncs := make(map[string]*contractFunction)
 	bcFuncs["BadFunction"] = someBadFunctionContractFunction
 	bcccn := contractChaincodeContract{
-		bcFuncs, nil, nil, nil, nil, nil,
+		"some version", bcFuncs, nil, nil, nil, nil, nil,
 	}
 
 	cc.contracts = map[string]contractChaincodeContract{
@@ -2648,7 +2670,7 @@ func TestReflectMetadata(t *testing.T) {
 	abcFuncs := make(map[string]*contractFunction)
 	abcFuncs["AnotherBadFunction"] = anotherBadFunctionContractFunction
 	abcccn := contractChaincodeContract{
-		abcFuncs, nil, nil, nil, nil, nil,
+		"some version", abcFuncs, nil, nil, nil, nil, nil,
 	}
 
 	cc.contracts = map[string]contractChaincodeContract{
@@ -2714,13 +2736,13 @@ func TestReflectMetadata(t *testing.T) {
 	var contractInfo spec.Info
 
 	chaincodeInfo := spec.Info{}
-	chaincodeInfo.Title = "undefined"
-	chaincodeInfo.Version = "latest"
+	chaincodeInfo.Title = "some title"
+	chaincodeInfo.Version = "some version"
 
 	scFuncs := make(map[string]*contractFunction)
 	scFuncs["SomeFunction"] = someFunctionContractFunction
 	scccn := contractChaincodeContract{
-		scFuncs, nil, nil, nil, nil, nil,
+		"some version", scFuncs, nil, nil, nil, nil, nil,
 	}
 
 	cscFuncs := make(map[string]*contractFunction)
@@ -2728,7 +2750,7 @@ func TestReflectMetadata(t *testing.T) {
 
 	cscFuncs["AnotherFunction"] = anotherFunctionContractFunction
 	cscccn := contractChaincodeContract{
-		cscFuncs, nil, nil, nil, nil, nil,
+		"some other version", cscFuncs, nil, nil, nil, nil, nil,
 	}
 
 	// Should handle generating metadata for a single name
@@ -2738,7 +2760,7 @@ func TestReflectMetadata(t *testing.T) {
 
 	contractInfo = spec.Info{}
 	contractInfo.Title = "SomeContract"
-	contractInfo.Version = "latest"
+	contractInfo.Version = "some version"
 
 	expectedMetadata = ContractChaincodeMetadata{}
 	expectedMetadata.Info = chaincodeInfo
@@ -2756,7 +2778,7 @@ func TestReflectMetadata(t *testing.T) {
 	// Should handle generating metadata functions alphabetically on ID
 	contractInfo = spec.Info{}
 	contractInfo.Title = "customname"
-	contractInfo.Version = "latest"
+	contractInfo.Version = "some other version"
 
 	cc.contracts = map[string]contractChaincodeContract{
 		"customname": cscccn,
@@ -2788,7 +2810,7 @@ func TestReflectMetadata(t *testing.T) {
 
 	contractInfo = spec.Info{}
 	contractInfo.Title = "somename"
-	contractInfo.Version = "latest"
+	contractInfo.Version = "some version"
 
 	expectedMetadata.Contracts["somename"] = ContractMetadata{
 		Info: contractInfo,
@@ -2800,7 +2822,7 @@ func TestReflectMetadata(t *testing.T) {
 
 	contractInfo = spec.Info{}
 	contractInfo.Title = "customname"
-	contractInfo.Version = "latest"
+	contractInfo.Version = "some other version"
 
 	expectedMetadata.Contracts["customname"] = ContractMetadata{
 		Info: contractInfo,
@@ -2820,7 +2842,7 @@ func TestAugmentMetadata(t *testing.T) {
 	scFuncs := make(map[string]*contractFunction)
 	scFuncs["SomeFunction"] = someFunctionContractFunction
 	scccn := contractChaincodeContract{
-		scFuncs, nil, nil, nil, nil, nil,
+		"some version", scFuncs, nil, nil, nil, nil, nil,
 	}
 
 	cc := ContractChaincode{}
@@ -2892,6 +2914,14 @@ func TestAddContract(t *testing.T) {
 	testContractChaincodeContractRepresentsContract(t, cc.contracts["simpleTestContract"], sc)
 	testContractChaincodeContractRepresentsContract(t, cc.contracts["customname"], csc)
 
+	// Should use contracts version
+	cc = new(ContractChaincode)
+	cc.contracts = make(map[string]contractChaincodeContract)
+	sc.version = "some version"
+	cc.addContract(&sc, fullExclude)
+	testContractChaincodeContractRepresentsContract(t, cc.contracts["simpleTestContract"], sc)
+	sc.version = ""
+
 	// Should add contract to map with unknown transaction
 	cc = new(ContractChaincode)
 	cc.contracts = make(map[string]contractChaincodeContract)
@@ -2920,14 +2950,70 @@ func TestAddContract(t *testing.T) {
 func TestCreateNewChaincode(t *testing.T) {
 	mc := new(myContract)
 
-	// Should call shim.Start
-	assert.EqualError(t, CreateNewChaincode(mc), shim.Start(convertC2CC(mc)).Error(), "should return same as shim.start")
+	// Should call convertC2CC
+	actual := CreateNewChaincode(mc)
+	expected := convertC2CC(mc)
+
+	assert.Equal(t, expected.defaultContract, actual.defaultContract, "should return defaultContract same as convertC2CC")
+	assert.Equal(t, len(expected.contracts), len(actual.contracts), "should return same as convertC2CC")
+
+	i := 0
+	actualContractKeys := make([]string, len(actual.contracts))
+	for k := range actual.contracts {
+		actualContractKeys[i] = k
+		i++
+	}
+
+	j := 0
+	expectedContractKeys := make([]string, len(expected.contracts))
+	for k := range actual.contracts {
+		expectedContractKeys[j] = k
+		j++
+	}
+
+	assert.Equal(t, expectedContractKeys, actualContractKeys, "should return same as convertC2CC")
+}
+
+func TestStart(t *testing.T) {
+	mc := new(myContract)
+
+	cc := CreateNewChaincode(mc)
+
+	assert.EqualError(t, cc.Start(), shim.Start(&cc).Error(), "should call shim.Start()")
+}
+
+func TestGetTitle(t *testing.T) {
+	cc := ContractChaincode{}
+	cc.title = "some title"
+
+	assert.Equal(t, "some title", cc.GetTitle(), "should get the title when set")
+}
+
+func TestSetTitle(t *testing.T) {
+	cc := ContractChaincode{}
+	cc.SetTitle("some title")
+
+	assert.Equal(t, "some title", cc.title, "should set the title")
+}
+
+func TestGetContractVersion(t *testing.T) {
+	cc := ContractChaincode{}
+	cc.version = "some version"
+
+	assert.Equal(t, "some version", cc.GetVersion(), "should get the version when set")
+}
+
+func TestSetContractVersion(t *testing.T) {
+	cc := ContractChaincode{}
+	cc.SetVersion("some version")
+
+	assert.Equal(t, "some version", cc.version, "should set the version")
 }
 
 func TestInit(t *testing.T) {
 	// Should just return when no function name passed
 	cc := convertC2CC()
-	mockStub := shim.NewMockStub("blank fcn", cc)
+	mockStub := shim.NewMockStub("blank fcn", &cc)
 	assert.Equal(t, shim.Success([]byte("Default initiator successful.")), cc.Init(mockStub), "should just return success on init with no function passed")
 
 	// Should call via invoke

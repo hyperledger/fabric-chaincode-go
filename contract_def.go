@@ -21,6 +21,10 @@ import (
 // ContractInterface defines functions a valid contract should have. Contracts to
 // be used in chaincode must implement this interface.
 type ContractInterface interface {
+	// GetVersion returns the the version of the contract. If the function returns a
+	// blank string then "latest" is used for the version.
+	GetVersion() string
+
 	// GetUnknownTransaction returns the unknown function to be used for a contract.
 	// When the contract is used in creating a new chaincode this function is called
 	// and the unknown transaction returned is stored. The unknown function is then
@@ -64,11 +68,22 @@ type ContractInterface interface {
 // and name. Can be embedded in user structs to quickly ensure their definition meets
 // the ContractInterface.
 type Contract struct {
+	version            string
 	unknownTransaction interface{}
 	beforeTransaction  interface{}
 	afterTransaction   interface{}
 	contextHandler     TransactionContextInterface
 	name               string
+}
+
+// SetVersion sets the version of the contract
+func (c *Contract) SetVersion(version string) {
+	c.version = version
+}
+
+// GetVersion returns the version of the contract
+func (c *Contract) GetVersion() string {
+	return c.version
 }
 
 // SetUnknownTransaction sets function for contract's unknownTransaction.
