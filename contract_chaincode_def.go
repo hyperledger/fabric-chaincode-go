@@ -273,6 +273,7 @@ func (cc *ContractChaincode) reflectMetadata() ContractChaincodeMetadata {
 		for key, fn := range contract.functions {
 			transactionMetadata := TransactionMetadata{}
 			transactionMetadata.Name = key
+			transactionMetadata.Tag = []string{"submitTx"}
 
 			for index, field := range fn.params.fields {
 				schema, err := getSchema(field)
