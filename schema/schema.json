@@ -128,7 +128,9 @@
                     "type": "string"
                 },
                 "properties": {
-                    "$ref": "#/definitions/parametersList"
+                    "^.*$": {
+                        "$ref": "#/definitions/schema"
+                    }
                 },
                 "required": {
                     "$ref": "http://json-schema.org/draft-04/schema#/definitions/stringArray"

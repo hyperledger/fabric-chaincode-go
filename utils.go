@@ -24,6 +24,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
+
+	"github.com/xeipuuv/gojsonschema"
 
 	"github.com/go-openapi/spec"
 )
@@ -436,57 +439,123 @@ func listBasicTypes() string {
 	return sliceAsCommaSentence(types)
 }
 
-func buildArraySchema(array reflect.Value) (*spec.Schema, error) {
+func buildArraySchema(array reflect.Value, components *ComponentMetadata) (*spec.Schema, error) {
 	if array.Len() < 1 {
 		return nil, fmt.Errorf("Arrays must have length greater than 0")
 	}
 
-	return buildArrayOrSliceSchema(array)
-}
+	lowerSchema, err := getSchema(array.Index(0).Type(), components)
 
-func buildSliceSchema(slice reflect.Value) (*spec.Schema, error) {
-	if slice.Len() < 1 {
-		slice = reflect.MakeSlice(slice.Type(), 1, 10)
-	}
-
-	return buildArrayOrSliceSchema(slice)
-}
-
-func buildArrayOrSliceSchema(obj reflect.Value) (*spec.Schema, error) {
-	var lowerSchema *spec.Schema
-	var err error
-
-	if obj.Index(0).Kind() == reflect.Array {
-		lowerSchema, err = buildArraySchema(obj.Index(0))
-
-		if err != nil {
-			return nil, err
-		}
-	} else if obj.Index(0).Kind() == reflect.Slice {
-		lowerSchema, err = buildSliceSchema(obj.Index(0))
-
-		if err != nil {
-			return nil, err
-		}
-	} else if _, ok := basicTypes[obj.Index(0).Kind()]; !ok {
-		return nil, fmt.Errorf("Slices/Arrays can only have base types %s. Slice/Array has basic type %s", listBasicTypes(), obj.Index(0).Kind().String())
-	} else {
-		lowerSchema = basicTypes[obj.Index(0).Kind()].getSchema()
+	if err != nil {
+		return nil, err
 	}
 
 	return spec.ArrayProperty(lowerSchema), nil
 }
 
-func getSchema(field reflect.Type) (*spec.Schema, error) {
+func buildSliceSchema(slice reflect.Value, components *ComponentMetadata) (*spec.Schema, error) {
+	if slice.Len() < 1 {
+		slice = reflect.MakeSlice(slice.Type(), 1, 10)
+	}
+
+	lowerSchema, err := getSchema(slice.Index(0).Type(), components)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return spec.ArrayProperty(lowerSchema), nil
+}
+
+func addComponentIfNotExists(obj reflect.Type, components *ComponentMetadata) error {
+	if obj.Kind() == reflect.Ptr {
+		obj = obj.Elem()
+	}
+
+	if _, ok := components.Schemas[obj.Name()]; ok {
+		return nil
+	}
+
+	schema := ObjectMetadata{}
+	schema.ID = obj.Name()
+	schema.Required = []string{}
+	schema.Properties = make(map[string]spec.Schema)
+	schema.AdditionalProperties = false
+
+	for i := 0; i < obj.NumField(); i++ {
+		if obj.Field(i).Name == "" || unicode.IsLower([]rune(obj.Field(i).Name)[0]) {
+			break
+		}
+
+		name := obj.Field(i).Tag.Get("json")
+
+		if name == "" {
+			name = obj.Field(i).Name
+		}
+
+		var err error
+
+		propSchema, err := getSchema(obj.Field(i).Type, components)
+
+		if err != nil {
+			return err
+		}
+
+		schema.Required = append(schema.Required, name)
+
+		schema.Properties[name] = *propSchema
+	}
+
+	components.Schemas[obj.Name()] = schema
+
+	return nil
+}
+
+func buildStructSchema(obj reflect.Type, components *ComponentMetadata) (*spec.Schema, error) {
+	if obj.Kind() == reflect.Ptr {
+		obj = obj.Elem()
+	}
+
+	err := addComponentIfNotExists(obj, components)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return spec.RefSchema("#/components/schemas/" + obj.Name()), nil
+}
+
+func getSchema(field reflect.Type, components *ComponentMetadata) (*spec.Schema, error) {
+	var schema *spec.Schema
+	var err error
+
 	if bt, ok := basicTypes[field.Kind()]; !ok {
 		if field.Kind() == reflect.Array {
-			return buildArraySchema(reflect.New(field).Elem())
+			schema, err = buildArraySchema(reflect.New(field).Elem(), components)
 		} else if field.Kind() == reflect.Slice {
-			return buildSliceSchema(reflect.MakeSlice(field, 1, 1))
+			schema, err = buildSliceSchema(reflect.MakeSlice(field, 1, 1), components)
+		} else if field.Kind() == reflect.Struct || (field.Kind() == reflect.Ptr && field.Elem().Kind() == reflect.Struct) {
+			schema, err = buildStructSchema(field, components)
 		} else {
-			return nil, fmt.Errorf("%s was not a valid basic type", field.String())
+			return nil, fmt.Errorf("%s was not a valid type", field.String())
 		}
 	} else {
 		return bt.getSchema(), nil
 	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return schema, nil
+}
+
+func validateErrorsToString(resErrors []gojsonschema.ResultError) string {
+	toReturn := ""
+
+	for i, v := range resErrors {
+		toReturn += strconv.Itoa(i+1) + ". " + v.String() + "\n"
+	}
+
+	return strings.Trim(toReturn, "\n")
 }

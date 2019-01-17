@@ -145,7 +145,7 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 	beforeTransaction := nsContract.beforeTransaction
 
 	if beforeTransaction != nil {
-		_, errRes := beforeTransaction.call(ctx, TransactionMetadata{}, params...)
+		_, errRes := beforeTransaction.call(ctx, TransactionMetadata{}, ComponentMetadata{}, params...)
 
 		if errRes != nil {
 			return shim.Error(errRes.Error())
@@ -161,7 +161,7 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 			return shim.Error(fmt.Sprintf("Function %s not found in contract %s", fn, ns))
 		}
 
-		successReturn, errorReturn = unknownTransaction.call(ctx, TransactionMetadata{}, params...)
+		successReturn, errorReturn = unknownTransaction.call(ctx, TransactionMetadata{}, ComponentMetadata{}, params...)
 	} else {
 		var transactionSchema TransactionMetadata
 
@@ -172,7 +172,7 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 			}
 		}
 
-		successReturn, errorReturn = nsContract.functions[fn].call(ctx, transactionSchema, params...)
+		successReturn, errorReturn = nsContract.functions[fn].call(ctx, transactionSchema, cc.metadata.Components, params...)
 	}
 
 	if errorReturn != nil {
@@ -182,7 +182,7 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 	afterTransaction := nsContract.afterTransaction
 
 	if afterTransaction != nil {
-		_, errRes := afterTransaction.call(ctx, TransactionMetadata{}, params...)
+		_, errRes := afterTransaction.call(ctx, TransactionMetadata{}, ComponentMetadata{}, params...)
 
 		if errRes != nil {
 			return shim.Error(errRes.Error())
@@ -255,6 +255,7 @@ func (cc *ContractChaincode) reflectMetadata() ContractChaincodeMetadata {
 	reflectedMetadata.Contracts = make(map[string]ContractMetadata)
 	reflectedMetadata.Info.Version = cc.GetVersion()
 	reflectedMetadata.Info.Title = cc.GetTitle()
+	reflectedMetadata.Components.Schemas = make(map[string]ObjectMetadata)
 
 	if reflectedMetadata.Info.Version == "" {
 		reflectedMetadata.Info.Version = "latest"
@@ -273,10 +274,14 @@ func (cc *ContractChaincode) reflectMetadata() ContractChaincodeMetadata {
 		for key, fn := range contract.functions {
 			transactionMetadata := TransactionMetadata{}
 			transactionMetadata.Name = key
-			transactionMetadata.Tag = []string{"submitTx"}
+			transactionMetadata.Tag = []string{}
+
+			if contractMetadata.Name != SystemContractName {
+				transactionMetadata.Tag = append(transactionMetadata.Tag, "submitTx")
+			}
 
 			for index, field := range fn.params.fields {
-				schema, err := getSchema(field)
+				schema, err := getSchema(field, &reflectedMetadata.Components)
 
 				if err != nil {
 					panic(fmt.Sprintf("Failed to generate metadata. Invalid function parameter type. %s", err))
@@ -284,14 +289,13 @@ func (cc *ContractChaincode) reflectMetadata() ContractChaincodeMetadata {
 
 				param := ParameterMetadata{}
 				param.Name = fmt.Sprintf("param%d", index)
-				param.Required = true
 				param.Schema = *schema
 
 				transactionMetadata.Parameters = append(transactionMetadata.Parameters, param)
 			}
 
 			if fn.returns.success != nil {
-				schema, err := getSchema(fn.returns.success)
+				schema, err := getSchema(fn.returns.success, &reflectedMetadata.Components)
 
 				if err != nil {
 					panic(fmt.Sprintf("Failed to generate metadata. Invalid function success return type. %s", err))

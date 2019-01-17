@@ -19,8 +19,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/go-openapi/strfmt"
-	"github.com/go-openapi/validate"
+	"github.com/xeipuuv/gojsonschema"
 )
 
 type contractFunctionParams struct {
@@ -39,8 +38,8 @@ type contractFunction struct {
 	returns  contractFunctionReturns
 }
 
-func (cf contractFunction) call(ctx reflect.Value, supplementaryMetadata TransactionMetadata, params ...string) (string, error) {
-	values, err := getArgs(cf, ctx, supplementaryMetadata, params)
+func (cf contractFunction) call(ctx reflect.Value, supplementaryMetadata TransactionMetadata, components ComponentMetadata, params ...string) (string, error) {
+	values, err := getArgs(cf, ctx, supplementaryMetadata, components, params)
 
 	if err != nil {
 		return "", err
@@ -63,59 +62,49 @@ func arrayOfValidType(array reflect.Value) error {
 		return fmt.Errorf("Arrays must have length greater than 0")
 	}
 
-	if array.Index(0).Kind() == reflect.Array {
-		return arrayOfValidType(array.Index(0))
-	} else if array.Index(0).Kind() == reflect.Slice {
-		return sliceOfValidType(array.Index(0))
-	} else if _, ok := basicTypes[array.Index(0).Kind()]; !ok {
-		return fmt.Errorf("Arrays can only have base types %s. Array has basic type %s", listBasicTypes(), array.Index(0).Kind().String())
-	}
-	return nil
+	return typeIsValid(array.Index(0).Type(), []reflect.Type{})
 }
 
-func sliceOfValidType(slice reflect.Value) error {
-	if slice.Len() < 1 {
-		slice = reflect.MakeSlice(slice.Type(), 1, 10)
+func structOfValidType(obj reflect.Type) error {
+	if obj.Kind() == reflect.Ptr {
+		obj = obj.Elem()
 	}
-	if slice.Index(0).Kind() == reflect.Slice {
-		return sliceOfValidType(slice.Index(0))
-	} else if slice.Index(0).Kind() == reflect.Array {
-		return arrayOfValidType(slice.Index(0))
-	} else if _, ok := basicTypes[slice.Index(0).Kind()]; !ok {
-		return fmt.Errorf("Slices can only have base types %s. Slice has basic type %s", listBasicTypes(), slice.Index(0).Kind().String())
+
+	for i := 0; i < obj.NumField(); i++ {
+		err := typeIsValid(obj.Field(i).Type, []reflect.Type{})
+
+		if err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
 func typeIsValid(t reflect.Type, additionalTypes []reflect.Type) error {
+	additionalTypesString := []string{}
+
+	for _, el := range additionalTypes {
+		additionalTypesString = append(additionalTypesString, el.String())
+	}
+
 	if t.Kind() == reflect.Array {
 		array := reflect.New(t).Elem()
 
 		return arrayOfValidType(array)
-
 	} else if t.Kind() == reflect.Slice {
 		slice := reflect.MakeSlice(t, 1, 1)
-
-		return sliceOfValidType(slice)
-
-	} else if _, ok := basicTypes[t.Kind()]; !ok {
+		return typeIsValid(slice.Index(0).Type(), []reflect.Type{})
+	} else if (t.Kind() == reflect.Struct || (t.Kind() == reflect.Ptr && t.Elem().Kind() == reflect.Struct)) && !typeInSlice(t, additionalTypes) {
+		return structOfValidType(t)
+	} else if _, ok := basicTypes[t.Kind()]; !ok && !typeInSlice(t, additionalTypes) {
 		if len(additionalTypes) > 0 {
-			if typeInSlice(t, additionalTypes) {
-				return nil
-			}
-
-			additionalTypesString := []string{}
-
-			for _, el := range additionalTypes {
-				additionalTypesString = append(additionalTypesString, el.String())
-			}
-
-			return fmt.Errorf("Type %s is not valid. Expected one of the basic types %s, an array/slice of these, or one of these additional types %s", t.String(), listBasicTypes(), sliceAsCommaSentence(additionalTypesString))
+			return fmt.Errorf("Type %s is not valid. Expected a struct, one of the basic types %s, an array/slice of these, or one of these additional types %s", t.String(), listBasicTypes(), sliceAsCommaSentence(additionalTypesString))
 		}
 
-		return fmt.Errorf("Type %s is not valid. Expected one of the basic types %s or an array/slice of these", t.String(), listBasicTypes())
-
+		return fmt.Errorf("Type %s is not valid. Expected a struct or one of the basic types %s or an array/slice of these", t.String(), listBasicTypes())
 	}
+
 	return nil
 }
 
@@ -249,7 +238,7 @@ func newContractFunctionFromReflect(typeMethod reflect.Method, valueMethod refle
 	return newContractFunction(valueMethod, paramDetails, returnDetails)
 }
 
-func createArrayOrSlice(param string, objType reflect.Type) (reflect.Value, error) {
+func createArraySliceOrStruct(param string, objType reflect.Type) (reflect.Value, error) {
 	obj := reflect.New(objType)
 
 	err := json.Unmarshal([]byte(param), obj.Interface())
@@ -261,7 +250,7 @@ func createArrayOrSlice(param string, objType reflect.Type) (reflect.Value, erro
 	return obj.Elem(), nil
 }
 
-func getArgs(fn contractFunction, ctx reflect.Value, supplementaryMetadata TransactionMetadata, params []string) ([]reflect.Value, error) {
+func getArgs(fn contractFunction, ctx reflect.Value, supplementaryMetadata TransactionMetadata, components ComponentMetadata, params []string) ([]reflect.Value, error) {
 	var shouldValidate bool
 
 	if !reflect.DeepEqual(supplementaryMetadata, TransactionMetadata{}) {
@@ -276,28 +265,36 @@ func getArgs(fn contractFunction, ctx reflect.Value, supplementaryMetadata Trans
 		values = append(values, ctx)
 	}
 
-	for i := 0; i < numParams; i++ {
-		inParamRange := true
+	if len(params) < numParams {
+		return nil, fmt.Errorf("Incorrect number of params. Expected %d, recieved %d", numParams, len(params))
+	}
 
-		if i >= len(params) {
-			inParamRange = false
-			params = append(params, "")
-		}
+	for i := 0; i < numParams; i++ {
 
 		fieldType := fn.params.fields[i]
 
 		var converted reflect.Value
+		toValidate := make(map[string]interface{})
 		var err error
 		if fieldType.Kind() == reflect.Array || fieldType.Kind() == reflect.Slice {
-			if !inParamRange {
-				params[i] = "[]"
-			}
-
-			converted, err = createArrayOrSlice(params[i], fieldType)
+			converted, err = createArraySliceOrStruct(params[i], fieldType)
 
 			if err != nil {
 				return nil, err
 			}
+
+			toValidate["prop"] = converted.Interface()
+
+		} else if fieldType.Kind() == reflect.Struct || (fieldType.Kind() == reflect.Ptr && fieldType.Elem().Kind() == reflect.Struct) {
+			converted, err = createArraySliceOrStruct(params[i], fieldType)
+
+			if err != nil {
+				return nil, err
+			}
+
+			structMap := make(map[string]interface{})
+			json.Unmarshal([]byte(params[i]), &structMap)
+			toValidate["prop"] = structMap
 
 		} else {
 			converted, err = basicTypes[fieldType.Kind()].convert(params[i])
@@ -305,13 +302,32 @@ func getArgs(fn contractFunction, ctx reflect.Value, supplementaryMetadata Trans
 			if err != nil {
 				return nil, fmt.Errorf("Param %s could not be converted to type %s", params[i], fieldType.String())
 			}
+
+			toValidate["prop"] = converted.Interface()
 		}
 
 		if shouldValidate {
-			err := validate.AgainstSchema(&supplementaryMetadata.Parameters[i].Schema, converted.Interface(), strfmt.Default)
+
+			suppSchema := supplementaryMetadata.Parameters[i].Schema
+
+			combined := make(map[string]interface{})
+			combined["components"] = components
+			combined["properties"] = make(map[string]interface{})
+			combined["properties"].(map[string]interface{})["prop"] = suppSchema
+
+			combinedLoader := gojsonschema.NewGoLoader(combined)
+			toValidateLoader := gojsonschema.NewGoLoader(toValidate)
+
+			schema, err := gojsonschema.NewSchema(combinedLoader)
 
 			if err != nil {
-				return nil, fmt.Errorf("Value passed for parameter \"%s\" did not match schema: %s", supplementaryMetadata.Parameters[i].Name, err)
+				return nil, fmt.Errorf("Invalid schema for parameter \"%s\": %s", supplementaryMetadata.Parameters[i].Name, err.Error())
+			}
+
+			result, _ := schema.Validate(toValidateLoader)
+
+			if !result.Valid() {
+				return nil, fmt.Errorf("Value passed for parameter \"%s\" did not match schema: %s", supplementaryMetadata.Parameters[i].Name, validateErrorsToString(result.Errors()))
 			}
 		}
 
@@ -350,7 +366,7 @@ func handleContractFunctionResponse(response []reflect.Value, function contractF
 		var errorError error
 
 		if successResponse.IsValid() {
-			if function.returns.success.Kind() == reflect.Array || function.returns.success.Kind() == reflect.Slice {
+			if function.returns.success.Kind() == reflect.Array || function.returns.success.Kind() == reflect.Slice || function.returns.success.Kind() == reflect.Struct || (function.returns.success.Kind() == reflect.Ptr && function.returns.success.Elem().Kind() == reflect.Struct) {
 				bytes, _ := json.Marshal(successResponse.Interface())
 				successString = string(bytes)
 			} else {

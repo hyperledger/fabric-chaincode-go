@@ -23,12 +23,11 @@ import (
 	"reflect"
 
 	"github.com/go-openapi/spec"
-	"github.com/go-openapi/strfmt"
-	"github.com/go-openapi/validate"
 	"github.com/hyperledger/fabric/core/chaincode/shim"
+	"github.com/xeipuuv/gojsonschema"
 )
 
-const metadataFolder = "META-INF/chaincode"
+const metadataFolder = "META-INF"
 const metadataFile = "metadata.json"
 
 var logger = shim.NewLogger("contractapi/metadata.go")
@@ -66,7 +65,6 @@ func GetJSONSchema() string {
 type ParameterMetadata struct {
 	Description string      `json:"description,omitempty"`
 	Name        string      `json:"name"`
-	Required    bool        `json:"required,omitempty"`
 	Schema      spec.Schema `json:"schema"`
 }
 
@@ -87,8 +85,10 @@ type ContractMetadata struct {
 
 // ObjectMetadata description of an asset
 type ObjectMetadata struct {
-	ID         string              `json:"$id"`
-	Properties []ParameterMetadata `json:"properties"`
+	ID                   string                 `json:"$id"`
+	Properties           map[string]spec.Schema `json:"properties"`
+	Required             []string               `json:"required"`
+	AdditionalProperties bool                   `json:"additionalProperties"`
 }
 
 // ComponentMetadata does something
@@ -150,16 +150,15 @@ func readMetadataFile() ContractChaincodeMetadata {
 		panic(fmt.Sprintf("Failed to get existing metadata. Could not read file %s. %s", metadataPath, err))
 	}
 
-	schema := new(spec.Schema)
-	json.Unmarshal([]byte(GetJSONSchema()), schema)
+	schemaLoader := gojsonschema.NewBytesLoader([]byte(GetJSONSchema()))
+	metadataLoader := gojsonschema.NewBytesLoader(metadataBytes)
 
-	metadata := map[string]interface{}{}
-	json.Unmarshal(metadataBytes, &metadata)
+	schema, _ := gojsonschema.NewSchema(schemaLoader)
 
-	err = validate.AgainstSchema(schema, metadata, strfmt.Default)
+	result, _ := schema.Validate(metadataLoader)
 
-	if err != nil {
-		panic(fmt.Sprintf("Failed to get existing metadata. Given file did not match schema: %s", err.Error()))
+	if !result.Valid() {
+		panic(fmt.Sprintf("Failed to get existing metadata. Given file did not match schema: %s", validateErrorsToString(result.Errors())))
 	}
 
 	json.Unmarshal(metadataBytes, &fileMetadata)

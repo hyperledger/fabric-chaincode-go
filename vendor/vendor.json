@@ -183,6 +183,24 @@
 			"revisionTime": "2018-10-28T12:27:15Z"
 		},
 		{
+			"checksumSHA1": "o1KfaMeWfqlgjoGdhrzgdXHvqYI=",
+			"path": "github.com/xeipuuv/gojsonpointer",
+			"revision": "4e3ac2762d5f479393488629ee9370b50873b3a6",
+			"revisionTime": "2018-01-27T04:07:02Z"
+		},
+		{
+			"checksumSHA1": "fEPr62UauELC0Q9W85uB88VdBRo=",
+			"path": "github.com/xeipuuv/gojsonreference",
+			"revision": "bd5ef7bd5415a7ac448318e64f11a24cd21e594b",
+			"revisionTime": "2018-01-27T04:06:03Z"
+		},
+		{
+			"checksumSHA1": "RTpHjaEtybSPQLp16ChQIaeRmw0=",
+			"path": "github.com/xeipuuv/gojsonschema",
+			"revision": "f971f3cd73b2899de6923801c147f075263e0c50",
+			"revisionTime": "2018-12-19T16:01:44Z"
+		},
+		{
 			"checksumSHA1": "B4zpBQQUZSNdNtZ7XReTRgrZ/lM=",
 			"path": "golang.org/x/net/idna",
 			"revision": "610586996380ceef02dd726cc09df7e00a3f8e56",
