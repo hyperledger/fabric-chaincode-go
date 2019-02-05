@@ -411,21 +411,32 @@ func (ft *float64Type) getSchema() *spec.Schema {
 	return spec.Float64Property()
 }
 
+type interfaceType struct{}
+
+func (st *interfaceType) convert(value string) (reflect.Value, error) {
+	return reflect.ValueOf(value), nil
+}
+
+func (st *interfaceType) getSchema() *spec.Schema {
+	return new(spec.Schema)
+}
+
 var basicTypes = map[reflect.Kind]basicType{
-	reflect.Bool:    new(boolType),
-	reflect.Float32: new(float32Type),
-	reflect.Float64: new(float64Type),
-	reflect.Int:     new(intType),
-	reflect.Int8:    new(int8Type),
-	reflect.Int16:   new(int16Type),
-	reflect.Int32:   new(int32Type),
-	reflect.Int64:   new(int64Type),
-	reflect.String:  new(stringType),
-	reflect.Uint:    new(uintType),
-	reflect.Uint8:   new(uint8Type),
-	reflect.Uint16:  new(uint16Type),
-	reflect.Uint32:  new(uint32Type),
-	reflect.Uint64:  new(uint64Type),
+	reflect.Bool:      new(boolType),
+	reflect.Float32:   new(float32Type),
+	reflect.Float64:   new(float64Type),
+	reflect.Int:       new(intType),
+	reflect.Int8:      new(int8Type),
+	reflect.Int16:     new(int16Type),
+	reflect.Int32:     new(int32Type),
+	reflect.Int64:     new(int64Type),
+	reflect.String:    new(stringType),
+	reflect.Uint:      new(uintType),
+	reflect.Uint8:     new(uint8Type),
+	reflect.Uint16:    new(uint16Type),
+	reflect.Uint32:    new(uint32Type),
+	reflect.Uint64:    new(uint64Type),
+	reflect.Interface: new(interfaceType),
 }
 
 func listBasicTypes() string {

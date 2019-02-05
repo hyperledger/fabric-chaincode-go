@@ -142,22 +142,24 @@ func testCallingContractFunctions(t *testing.T, callType string) {
 	callContractFunctionAndCheckSuccess(t, cc, []string{"myContract:ReturnsString"}, callType, mc.ReturnsString())
 	mc = myContract{}
 
-	// Should call before, named then after functions in order
+	// Should call before, named then after functions in order and pass name response
 	mc.SetBeforeTransaction(mc.logBefore)
 	mc.SetAfterTransaction(mc.logAfter)
 	cc = convertC2CC(&mc)
-	callContractFunctionAndCheckSuccess(t, cc, []string{"myContract:LogNamed"}, callType, "")
-	assert.Equal(t, []string{"Before function called", "Named function called", "After function called"}, mc.called, "Expected called field of myContract to have logged in order before, named then after")
+	callContractFunctionAndCheckSuccess(t, cc, []string{"myContract:LogNamed"}, callType, "named response")
+	assert.Equal(t, []string{"Before function called", "Named function called", "After function called with named response"}, mc.called, "Expected called field of myContract to have logged in order before, named then after")
 	mc = myContract{}
 
-	// Should call before, unknown then after functions in order
+	// Should call before, unknown then after functions in order and pass unknown response
 	mc.SetBeforeTransaction(mc.logBefore)
 	mc.SetAfterTransaction(mc.logAfter)
 	mc.SetUnknownTransaction(mc.logUnknown)
 	cc = convertC2CC(&mc)
 	callContractFunctionAndCheckSuccess(t, cc, []string{"myContract:somebadfunctionname"}, callType, "")
-	assert.Equal(t, []string{"Before function called", "Unknown function called", "After function called"}, mc.called, "Expected called field of myContract to have logged in order before, named then after")
+	assert.Equal(t, []string{"Before function called", "Unknown function called", "After function called with <nil>"}, mc.called, "Expected called field of myContract to have logged in order before, named then after")
 	mc = myContract{}
+
+	// Should pass
 
 	// should pass the stub into transaction context as expected
 	callContractFunctionAndCheckSuccess(t, cc, []string{"myContract:CheckContextStub"}, callType, "Stub as expected")
@@ -571,32 +573,27 @@ func TestStart(t *testing.T) {
 	assert.EqualError(t, cc.Start(), shim.Start(&cc).Error(), "should call shim.Start()")
 }
 
-func TestGetTitle(t *testing.T) {
-	cc := ContractChaincode{}
-	cc.title = "some title"
-
-	assert.Equal(t, "some title", cc.GetTitle(), "should get the title when set")
-}
-
 func TestSetTitle(t *testing.T) {
 	cc := ContractChaincode{}
 	cc.SetTitle("some title")
 
 	assert.Equal(t, "some title", cc.title, "should set the title")
 }
-
-func TestGetContractVersion(t *testing.T) {
-	cc := ContractChaincode{}
-	cc.version = "some version"
-
-	assert.Equal(t, "some version", cc.GetVersion(), "should get the version when set")
-}
-
-func TestSetContractVersion(t *testing.T) {
+func TestSetChaincodeVersion(t *testing.T) {
 	cc := ContractChaincode{}
 	cc.SetVersion("some version")
 
 	assert.Equal(t, "some version", cc.version, "should set the version")
+}
+
+func TestSetDefault(t *testing.T) {
+	c := new(myContract)
+	c.SetName("some name")
+
+	cc := ContractChaincode{}
+	cc.SetDefault(c)
+
+	assert.Equal(t, "some name", cc.defaultContract, "should set the default contract name")
 }
 
 func TestInit(t *testing.T) {

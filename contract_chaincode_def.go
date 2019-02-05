@@ -29,9 +29,9 @@ import (
 type contractChaincodeContract struct {
 	version                      string
 	functions                    map[string]*contractFunction
-	unknownTransaction           *contractFunction
-	beforeTransaction            *contractFunction
-	afterTransaction             *contractFunction
+	unknownTransaction           *transactionHandler
+	beforeTransaction            *transactionHandler
+	afterTransaction             *transactionHandler
 	transactionContextHandler    reflect.Type
 	transactionContextPtrHandler reflect.Type
 }
@@ -67,24 +67,19 @@ func (cc *ContractChaincode) Start() error {
 	return shim.Start(cc)
 }
 
-// GetTitle returns the set title
-func (cc *ContractChaincode) GetTitle() string {
-	return cc.title
-}
-
 // SetTitle sets the title
 func (cc *ContractChaincode) SetTitle(title string) {
 	cc.title = title
 }
 
-// GetVersion returns the set version
-func (cc *ContractChaincode) GetVersion() string {
-	return cc.version
-}
-
 // SetVersion sets the version
 func (cc *ContractChaincode) SetVersion(version string) {
 	cc.version = version
+}
+
+// SetDefault sets the default contract name
+func (cc *ContractChaincode) SetDefault(c ContractInterface) {
+	cc.defaultContract = c.GetName()
 }
 
 // Init is called during Instantiate transaction after the chaincode container
@@ -145,7 +140,7 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 	beforeTransaction := nsContract.beforeTransaction
 
 	if beforeTransaction != nil {
-		_, errRes := beforeTransaction.call(ctx, TransactionMetadata{}, ComponentMetadata{}, params...)
+		_, _, errRes := beforeTransaction.call(ctx, nil)
 
 		if errRes != nil {
 			return shim.Error(errRes.Error())
@@ -153,6 +148,7 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 	}
 
 	var successReturn string
+	var successIFace interface{}
 	var errorReturn error
 
 	if _, ok := nsContract.functions[fn]; !ok {
@@ -161,18 +157,18 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 			return shim.Error(fmt.Sprintf("Function %s not found in contract %s", fn, ns))
 		}
 
-		successReturn, errorReturn = unknownTransaction.call(ctx, TransactionMetadata{}, ComponentMetadata{}, params...)
+		successReturn, successIFace, errorReturn = unknownTransaction.call(ctx, nil)
 	} else {
-		var transactionSchema TransactionMetadata
+		var transactionSchema *TransactionMetadata
 
 		for _, v := range cc.metadata.Contracts[ns].Transactions {
 			if v.Name == fn {
-				transactionSchema = v
+				transactionSchema = &v
 				break
 			}
 		}
 
-		successReturn, errorReturn = nsContract.functions[fn].call(ctx, transactionSchema, cc.metadata.Components, params...)
+		successReturn, successIFace, errorReturn = nsContract.functions[fn].call(ctx, transactionSchema, &cc.metadata.Components, params...)
 	}
 
 	if errorReturn != nil {
@@ -182,7 +178,7 @@ func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Respo
 	afterTransaction := nsContract.afterTransaction
 
 	if afterTransaction != nil {
-		_, errRes := afterTransaction.call(ctx, TransactionMetadata{}, ComponentMetadata{}, params...)
+		_, _, errRes := afterTransaction.call(ctx, successIFace)
 
 		if errRes != nil {
 			return shim.Error(errRes.Error())
@@ -219,19 +215,19 @@ func (cc *ContractChaincode) addContract(contract ContractInterface, excludeFunc
 	ut, err := contract.GetUnknownTransaction()
 
 	if err == nil && ut != nil {
-		ccn.unknownTransaction = newContractFunctionFromFunc(ut, ccn.transactionContextPtrHandler)
+		ccn.unknownTransaction = newTransactionHandler(ut, ccn.transactionContextPtrHandler, unknown)
 	}
 
 	bt, err := contract.GetBeforeTransaction()
 
 	if err == nil && bt != nil {
-		ccn.beforeTransaction = newContractFunctionFromFunc(bt, ccn.transactionContextPtrHandler)
+		ccn.beforeTransaction = newTransactionHandler(bt, ccn.transactionContextPtrHandler, before)
 	}
 
 	at, err := contract.GetAfterTransaction()
 
 	if err == nil && at != nil {
-		ccn.afterTransaction = newContractFunctionFromFunc(at, ccn.transactionContextPtrHandler)
+		ccn.afterTransaction = newTransactionHandler(at, ccn.transactionContextPtrHandler, after)
 	}
 
 	for i := 0; i < scT.NumMethod(); i++ {
@@ -253,8 +249,8 @@ func (cc *ContractChaincode) addContract(contract ContractInterface, excludeFunc
 func (cc *ContractChaincode) reflectMetadata() ContractChaincodeMetadata {
 	reflectedMetadata := ContractChaincodeMetadata{}
 	reflectedMetadata.Contracts = make(map[string]ContractMetadata)
-	reflectedMetadata.Info.Version = cc.GetVersion()
-	reflectedMetadata.Info.Title = cc.GetTitle()
+	reflectedMetadata.Info.Version = cc.version
+	reflectedMetadata.Info.Title = cc.title
 	reflectedMetadata.Components.Schemas = make(map[string]ObjectMetadata)
 
 	if reflectedMetadata.Info.Version == "" {

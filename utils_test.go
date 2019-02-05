@@ -180,6 +180,10 @@ func TestConvert(t *testing.T) {
 	assert.Nil(t, err, "should not return error for valid value")
 	assert.Equal(t, float64(math.MaxFloat64), val.Interface().(float64), "should have returned the float64 value")
 
+	val, err = interfaceTypeVar.convert("hello world")
+	assert.Nil(t, err, "should never return error for interface")
+	assert.Equal(t, "hello world", val.Interface().(string), "should return string that went in")
+
 	// Should error when bad value passed
 	testConvertError(t, boolTypeVar, "gibberish", "bool")
 	testConvertError(t, intTypeVar, "gibberish", "int")
@@ -307,6 +311,12 @@ func TestTypesGetSchema(t *testing.T) {
 	actualSchema = float64TypeVar.getSchema()
 
 	assert.Equal(t, expectedSchema, actualSchema, "should give back float64 schema")
+
+	// interface
+	expectedSchema = new(spec.Schema)
+	actualSchema = interfaceTypeVar.getSchema()
+
+	assert.Equal(t, expectedSchema, actualSchema, "should give back interface schema")
 }
 
 func TestBuildArraySchema(t *testing.T) {
@@ -481,6 +491,11 @@ func TestGetSchema(t *testing.T) {
 	testGetSchema(t, uint64RefType, uint64TypeVar.getSchema())
 	testGetSchema(t, float32RefType, float32TypeVar.getSchema())
 	testGetSchema(t, float64RefType, float64TypeVar.getSchema())
+
+	mc := myContract{}
+	mcFuncType := reflect.TypeOf(mc.AfterTransactionWithInterface)
+
+	testGetSchema(t, mcFuncType.In(1), interfaceTypeVar.getSchema())
 
 	// Should return error when array is not one of the basic types
 	badArr := [1]complex128{}

@@ -124,7 +124,7 @@ func testConvertCC(t *testing.T, testData []simpleTestContract) {
 
 	expectedSysMetadata.Contracts[SystemContractName] = systemContractMetadata
 
-	metadata, _ := fn.call(reflect.Value{}, TransactionMetadata{}, ComponentMetadata{})
+	metadata, _, _ := fn.call(reflect.Value{}, nil, nil)
 
 	ccMetadata := ContractChaincodeMetadata{}
 
@@ -153,5 +153,5 @@ func TestConvertC2CC(t *testing.T) {
 	testConvertCC(t, []simpleTestContract{sc, csc})
 
 	// Should panic when contract has function with same name as a Contract function but does not embed Contract and function is invalid
-	assert.PanicsWithValue(t, fmt.Sprintf("SetAfterTransaction contains invalid parameter type. Type interface {} is not valid. Expected a struct, one of the basic types %s, an array/slice of these, or one of these additional types %s", listBasicTypes(), basicContextPtrType.String()), func() { convertC2CC(new(Contract)) }, "should have panicked due to bad function format")
+	assert.PanicsWithValue(t, fmt.Sprintf("SetTransactionContextHandler contains invalid parameter type. Type contractapi.TransactionContextInterface is not valid. Expected a struct, one of the basic types %s, an array/slice of these, or one of these additional types %s", listBasicTypes(), basicContextPtrType.String()), func() { convertC2CC(new(Contract)) }, "should have panicked due to bad function format")
 }

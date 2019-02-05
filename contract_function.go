@@ -38,11 +38,11 @@ type contractFunction struct {
 	returns  contractFunctionReturns
 }
 
-func (cf contractFunction) call(ctx reflect.Value, supplementaryMetadata TransactionMetadata, components ComponentMetadata, params ...string) (string, error) {
+func (cf contractFunction) call(ctx reflect.Value, supplementaryMetadata *TransactionMetadata, components *ComponentMetadata, params ...string) (string, interface{}, error) {
 	values, err := getArgs(cf, ctx, supplementaryMetadata, components, params)
 
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	someResp := cf.function.Call(values)
@@ -97,7 +97,7 @@ func typeIsValid(t reflect.Type, additionalTypes []reflect.Type) error {
 		return typeIsValid(slice.Index(0).Type(), []reflect.Type{})
 	} else if (t.Kind() == reflect.Struct || (t.Kind() == reflect.Ptr && t.Elem().Kind() == reflect.Struct)) && !typeInSlice(t, additionalTypes) {
 		return structOfValidType(t)
-	} else if _, ok := basicTypes[t.Kind()]; !ok && !typeInSlice(t, additionalTypes) {
+	} else if _, ok := basicTypes[t.Kind()]; (!ok || (t.Kind() == reflect.Interface && t.String() != "interface {}")) && !typeInSlice(t, additionalTypes) {
 		if len(additionalTypes) > 0 {
 			return fmt.Errorf("Type %s is not valid. Expected a struct, one of the basic types %s, an array/slice of these, or one of these additional types %s", t.String(), listBasicTypes(), sliceAsCommaSentence(additionalTypesString))
 		}
@@ -250,23 +250,27 @@ func createArraySliceOrStruct(param string, objType reflect.Type) (reflect.Value
 	return obj.Elem(), nil
 }
 
-func getArgs(fn contractFunction, ctx reflect.Value, supplementaryMetadata TransactionMetadata, components ComponentMetadata, params []string) ([]reflect.Value, error) {
+func getArgs(fn contractFunction, ctx reflect.Value, supplementaryMetadata *TransactionMetadata, components *ComponentMetadata, params []string) ([]reflect.Value, error) {
 	var shouldValidate bool
 
-	if !reflect.DeepEqual(supplementaryMetadata, TransactionMetadata{}) {
+	numParams := len(fn.params.fields)
+
+	if supplementaryMetadata != nil {
 		shouldValidate = true
+
+		if len(supplementaryMetadata.Parameters) != numParams {
+			return nil, fmt.Errorf("Incorrect number of params in supplementary metadata. Expected %d, received %d", numParams, len(supplementaryMetadata.Parameters))
+		}
 	}
 
 	values := []reflect.Value{}
-
-	numParams := len(fn.params.fields)
 
 	if fn.params.context != nil {
 		values = append(values, ctx)
 	}
 
 	if len(params) < numParams {
-		return nil, fmt.Errorf("Incorrect number of params. Expected %d, recieved %d", numParams, len(params))
+		return nil, fmt.Errorf("Incorrect number of params. Expected %d, received %d", numParams, len(params))
 	}
 
 	for i := 0; i < numParams; i++ {
@@ -337,7 +341,7 @@ func getArgs(fn contractFunction, ctx reflect.Value, supplementaryMetadata Trans
 	return values, nil
 }
 
-func handleContractFunctionResponse(response []reflect.Value, function contractFunction) (string, error) {
+func handleContractFunctionResponse(response []reflect.Value, function contractFunction) (string, interface{}, error) {
 	expectedLength := 0
 
 	returnsSuccess := function.returns.success != nil
@@ -364,22 +368,35 @@ func handleContractFunctionResponse(response []reflect.Value, function contractF
 
 		var successString string
 		var errorError error
+		var iface interface{}
 
 		if successResponse.IsValid() {
-			if function.returns.success.Kind() == reflect.Array || function.returns.success.Kind() == reflect.Slice || function.returns.success.Kind() == reflect.Struct || (function.returns.success.Kind() == reflect.Ptr && function.returns.success.Elem().Kind() == reflect.Struct) {
-				bytes, _ := json.Marshal(successResponse.Interface())
-				successString = string(bytes)
-			} else {
-				successString = fmt.Sprint(successResponse.Interface())
+			if !isNillableType(successResponse.Kind()) || !successResponse.IsNil() {
+				if isMarshallingType(function.returns.success) || function.returns.success.Kind() == reflect.Interface && isMarshallingType(successResponse.Type()) {
+					bytes, _ := json.Marshal(successResponse.Interface())
+					successString = string(bytes)
+				} else {
+					successString = fmt.Sprint(successResponse.Interface())
+				}
 			}
+
+			iface = successResponse.Interface()
 		}
 
 		if errorResponse.IsValid() && !errorResponse.IsNil() {
 			errorError = errorResponse.Interface().(error)
 		}
 
-		return successString, errorError
+		return successString, iface, errorError
 	}
 
 	panic("Response does not match expected return for given function.")
+}
+
+func isNillableType(kind reflect.Kind) bool {
+	return kind == reflect.Ptr || kind == reflect.Interface || kind == reflect.Map || kind == reflect.Slice || kind == reflect.Chan || kind == reflect.Func
+}
+
+func isMarshallingType(typ reflect.Type) bool {
+	return typ.Kind() == reflect.Array || typ.Kind() == reflect.Slice || typ.Kind() == reflect.Struct || (typ.Kind() == reflect.Ptr && typ.Elem().Kind() == reflect.Struct)
 }

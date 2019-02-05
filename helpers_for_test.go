@@ -52,6 +52,7 @@ var uint32TypeVar = new(uint32Type)
 var uint64TypeVar = new(uint64Type)
 var float32TypeVar = new(float32Type)
 var float64TypeVar = new(float64Type)
+var interfaceTypeVar = new(interfaceType)
 
 var boolRefType = reflect.TypeOf(true)
 var stringRefType = reflect.TypeOf("")
@@ -102,7 +103,7 @@ func testContractChaincodeContractRepresentsContract(t *testing.T, ccns contract
 	if err != nil {
 		assert.Nil(t, ccns.unknownTransaction, "should be nil when contract has no unknown transaction")
 	} else {
-		assert.Equal(t, ccns.unknownTransaction, newContractFunctionFromFunc(ut, transactionContextPtrHandler), "should have set correct unknown transaction when set")
+		assert.Equal(t, ccns.unknownTransaction, newTransactionHandler(ut, transactionContextPtrHandler, unknown), "should have set correct unknown transaction when set")
 	}
 
 	if contract.GetVersion() == "" {
@@ -116,7 +117,7 @@ func testContractChaincodeContractRepresentsContract(t *testing.T, ccns contract
 	if err != nil {
 		assert.Nil(t, ccns.beforeTransaction, "should be nil when contract has no before transaction")
 	} else {
-		assert.Equal(t, ccns.beforeTransaction, newContractFunctionFromFunc(bt, transactionContextPtrHandler), "should have set correct before transaction when set")
+		assert.Equal(t, ccns.beforeTransaction, newTransactionHandler(bt, transactionContextPtrHandler, before), "should have set correct before transaction when set")
 	}
 
 	at, err := contract.GetAfterTransaction()
@@ -124,7 +125,7 @@ func testContractChaincodeContractRepresentsContract(t *testing.T, ccns contract
 	if err != nil {
 		assert.Nil(t, ccns.afterTransaction, "should be nil when contract has no after transaction")
 	} else {
-		assert.Equal(t, ccns.afterTransaction, newContractFunctionFromFunc(at, transactionContextPtrHandler), "should have set correct after transaction when set")
+		assert.Equal(t, ccns.afterTransaction, newTransactionHandler(at, transactionContextPtrHandler, after), "should have set correct after transaction when set")
 	}
 }
 
@@ -205,16 +206,33 @@ func (mc *myContract) logBefore() {
 	mc.called = append(mc.called, "Before function called")
 }
 
-func (mc *myContract) LogNamed() {
+func (mc *myContract) LogNamed() string {
 	mc.called = append(mc.called, "Named function called")
+	return "named response"
 }
 
-func (mc *myContract) logAfter() {
-	mc.called = append(mc.called, "After function called")
+func (mc *myContract) logAfter(data interface{}) {
+	mc.called = append(mc.called, fmt.Sprintf("After function called with %v", data))
 }
 
 func (mc *myContract) logUnknown() {
 	mc.called = append(mc.called, "Unknown function called")
+}
+
+func (mc *myContract) BeforeTransaction(ctx *TransactionContext) (string, error) {
+	return "some before transaction", errors.New("Some before error")
+}
+
+func (mc *myContract) UnknownTransaction(ctx *TransactionContext) (string, error) {
+	return "some unknown transaction", errors.New("Some unknown error")
+}
+
+func (mc *myContract) AfterTransaction(ctx *TransactionContext) (string, error) {
+	return "some after transaction", errors.New("some after error")
+}
+
+func (mc *myContract) AfterTransactionWithInterface(ctx *TransactionContext, param0 interface{}) (string, error) {
+	return reflect.TypeOf(param0).String(), errors.New("some after with iFace error")
 }
 
 func (mc *myContract) CheckContextStub(ctx *TransactionContext) (string, error) {
@@ -310,8 +328,9 @@ type simpleTestContractWithCustomContext struct {
 	Contract
 }
 
-func (sc *simpleTestContractWithCustomContext) SetValInCustomContext(ctx *customContext, newVal string) {
-	ctx.someVal = newVal
+func (sc *simpleTestContractWithCustomContext) SetValInCustomContext(ctx *customContext) {
+	_, params := ctx.GetStub().GetFunctionAndParameters()
+	ctx.someVal = params[0]
 }
 
 func (sc *simpleTestContractWithCustomContext) GetValInCustomContext(ctx *customContext) (string, error) {

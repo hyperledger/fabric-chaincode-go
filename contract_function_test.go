@@ -507,7 +507,7 @@ func setContractFunctionParams(cf *contractFunction, context reflect.Type, field
 	cf.params = cfp
 }
 
-func callGetArgsAndBasicTest(t *testing.T, cf contractFunction, ctx *TransactionContext, supplementaryMetadata TransactionMetadata, components ComponentMetadata, testParams []string) []reflect.Value {
+func callGetArgsAndBasicTest(t *testing.T, cf contractFunction, ctx *TransactionContext, supplementaryMetadata *TransactionMetadata, components *ComponentMetadata, testParams []string) []reflect.Value {
 	t.Helper()
 
 	values, err := getArgs(cf, reflect.ValueOf(ctx), supplementaryMetadata, components, testParams)
@@ -582,7 +582,7 @@ func testGetArgsWithTypes(t *testing.T, types map[reflect.Kind]interface{}, para
 			typ,
 		})
 
-		values := callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, ComponentMetadata{}, params)
+		values := callGetArgsAndBasicTest(t, cf, ctx, nil, nil, params)
 		testReflectValueEqualSlice(t, values, expectedArgs)
 	}
 }
@@ -595,15 +595,16 @@ func setContractFunctionReturns(cf *contractFunction, successReturn reflect.Type
 	cf.returns = cfr
 }
 
-func testHandleResponse(t *testing.T, successReturn reflect.Type, errorReturn bool, response []reflect.Value, expectedString string, expectedError error) {
+func testHandleResponse(t *testing.T, successReturn reflect.Type, errorReturn bool, response []reflect.Value, expectedString string, expectedValue interface{}, expectedError error) {
 	t.Helper()
 
 	cf := contractFunction{}
 
 	setContractFunctionReturns(&cf, successReturn, errorReturn)
-	strResp, errResp := handleContractFunctionResponse(response, cf)
+	strResp, valueResp, errResp := handleContractFunctionResponse(response, cf)
 
 	assert.Equal(t, expectedString, strResp, "should have returned string value from response")
+	assert.Equal(t, expectedValue, valueResp, "should have returned actual value from response")
 	assert.Equal(t, expectedError, errResp, "should have returned error value from response")
 }
 
@@ -674,6 +675,11 @@ func TestTypeIsValid(t *testing.T) {
 	assert.Nil(t, typeIsValid(uint64RefType, []reflect.Type{}), "should not return an error for uint64 type")
 	assert.Nil(t, typeIsValid(float32RefType, []reflect.Type{}), "should not return an error for float32 type")
 	assert.Nil(t, typeIsValid(float64RefType, []reflect.Type{}), "should not return an error for float64 type")
+
+	mc := myContract{}
+	mcFuncType := reflect.TypeOf(mc.AfterTransactionWithInterface)
+
+	assert.Nil(t, typeIsValid(mcFuncType.In(1), []reflect.Type{}))
 
 	// Should return nil for arrays made of each of the basic types
 	assert.Nil(t, typeIsValid(reflect.TypeOf([1]string{}), []reflect.Type{}), "should not return an error for a string array type")
@@ -1036,14 +1042,26 @@ func TestGetArgs(t *testing.T) {
 		stringRefType,
 	})
 
-	values, err = getArgs(cf, reflect.ValueOf(ctx), TransactionMetadata{}, ComponentMetadata{}, []string{})
+	values, err = getArgs(cf, reflect.ValueOf(ctx), nil, nil, []string{})
 	assert.Nil(t, values, "should not return values when parameter data bad")
-	assert.Contains(t, err.Error(), "Incorrect number of params. Expected 1, recieved 0", "should error when missing params")
+	assert.Contains(t, err.Error(), "Incorrect number of params. Expected 1, received 0", "should error when missing params")
+
+	// should error when supplementary JSON has not enough params
+	tm := new(TransactionMetadata)
+	tm.Parameters = []ParameterMetadata{}
+
+	setContractFunctionParams(&cf, nil, []reflect.Type{
+		stringRefType,
+	})
+
+	values, err = getArgs(cf, reflect.ValueOf(ctx), tm, nil, []string{})
+	assert.Nil(t, values, "should not return values when parameter data bad")
+	assert.Contains(t, err.Error(), "Incorrect number of params in supplementary metadata. Expected 1, received 0", "should error when missing params")
 
 	// Should return empty array when contract function takes no params
 	setContractFunctionParams(&cf, nil, []reflect.Type{})
 
-	callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, ComponentMetadata{}, testParams)
+	callGetArgsAndBasicTest(t, cf, ctx, nil, nil, testParams)
 
 	// Should return array using passed parameters when contract function takes same number of params as sent
 	setContractFunctionParams(&cf, nil, []reflect.Type{
@@ -1052,7 +1070,7 @@ func TestGetArgs(t *testing.T) {
 		stringRefType,
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, ComponentMetadata{}, testParams)
+	values = callGetArgsAndBasicTest(t, cf, ctx, nil, nil, testParams)
 
 	testReflectValueEqualSlice(t, values, testParams)
 
@@ -1061,7 +1079,7 @@ func TestGetArgs(t *testing.T) {
 	// Should include ctx in returned values and no params when function only takes ctx
 	setContractFunctionParams(&cf, basicContextPtrType, []reflect.Type{})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, ComponentMetadata{}, testParams)
+	values = callGetArgsAndBasicTest(t, cf, ctx, nil, nil, testParams)
 
 	_, ok = values[0].Interface().(*TransactionContext)
 
@@ -1074,7 +1092,7 @@ func TestGetArgs(t *testing.T) {
 		stringRefType,
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, ComponentMetadata{}, testParams)
+	values = callGetArgsAndBasicTest(t, cf, ctx, nil, nil, testParams)
 
 	_, ok = values[0].Interface().(*TransactionContext)
 
@@ -1085,7 +1103,7 @@ func TestGetArgs(t *testing.T) {
 	// Should be using context passed
 	setContractFunctionParams(&cf, reflect.TypeOf(new(customContext)), []reflect.Type{})
 
-	values, err = getArgs(cf, reflect.ValueOf(new(customContext)), TransactionMetadata{}, ComponentMetadata{}, testParams)
+	values, err = getArgs(cf, reflect.ValueOf(new(customContext)), nil, nil, testParams)
 
 	assert.Nil(t, err, "should not return an error for a valid cf")
 	assert.Equal(t, 1, len(values), "should return same length array list as number of fields plus 1 for context")
@@ -1101,7 +1119,7 @@ func TestGetArgs(t *testing.T) {
 		boolRefType,
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, ComponentMetadata{}, []string{"true"})
+	values = callGetArgsAndBasicTest(t, cf, ctx, nil, nil, []string{"true"})
 	testReflectValueEqualSlice(t, values, []bool{true})
 
 	// Should handle ints
@@ -1139,7 +1157,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf(byte(65)),
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, ComponentMetadata{}, []string{"65"})
+	values = callGetArgsAndBasicTest(t, cf, ctx, nil, nil, []string{"65"})
 	testReflectValueEqualSlice(t, values, []byte{65})
 
 	// Should handle runes
@@ -1147,15 +1165,26 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf(rune(65)),
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, ComponentMetadata{}, []string{"65"})
+	values = callGetArgsAndBasicTest(t, cf, ctx, nil, nil, []string{"65"})
 	testReflectValueEqualSlice(t, values, []rune{65})
+
+	// Should handle interface by just returning what was sent
+	mc := myContract{}
+	mcFuncType := reflect.TypeOf(mc.AfterTransactionWithInterface)
+
+	setContractFunctionParams(&cf, nil, []reflect.Type{
+		mcFuncType.In(1),
+	})
+
+	values = callGetArgsAndBasicTest(t, cf, ctx, nil, nil, []string{"interface!"})
+	testReflectValueEqualSlice(t, values, []string{"interface!"})
 
 	// Should return an error if conversion errors
 	setContractFunctionParams(&cf, nil, []reflect.Type{
 		intRefType,
 	})
 
-	values, err = getArgs(cf, reflect.ValueOf(ctx), TransactionMetadata{}, ComponentMetadata{}, []string{"abc"})
+	values, err = getArgs(cf, reflect.ValueOf(ctx), nil, nil, []string{"abc"})
 
 	assert.EqualError(t, err, "Param abc could not be converted to type int", "should have returned error when convert returns error")
 	assert.Nil(t, values, "should not have returned value list on error")
@@ -1165,7 +1194,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf([4]int{}),
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, ComponentMetadata{}, []string{"[1,2,3,4]"})
+	values = callGetArgsAndBasicTest(t, cf, ctx, nil, nil, []string{"[1,2,3,4]"})
 	testReflectValueEqualSlice(t, values, [][4]int{{1, 2, 3, 4}})
 
 	// Should handle multidimensional array of basic type
@@ -1173,7 +1202,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf([4][1]int{}),
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, ComponentMetadata{}, []string{"[[1],[2],[3],[4]]"})
+	values = callGetArgsAndBasicTest(t, cf, ctx, nil, nil, []string{"[[1],[2],[3],[4]]"})
 	testReflectValueEqualSlice(t, values, [][4][1]int{{{1}, {2}, {3}, {4}}})
 
 	// Should error when the array they pass is not the correct format
@@ -1181,7 +1210,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf([4]int{}),
 	})
 
-	values, err = getArgs(cf, reflect.ValueOf(ctx), TransactionMetadata{}, ComponentMetadata{}, []string{"[1,2,3,\"a\"]"})
+	values, err = getArgs(cf, reflect.ValueOf(ctx), nil, nil, []string{"[1,2,3,\"a\"]"})
 	assert.EqualError(t, err, "Value [1,2,3,\"a\"] was not passed in expected format [4]int", "should have returned error when array conversion returns error")
 	assert.Nil(t, values, "should not have returned value list on error")
 
@@ -1190,7 +1219,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf([4][1]int{}),
 	})
 
-	values, err = getArgs(cf, reflect.ValueOf(ctx), TransactionMetadata{}, ComponentMetadata{}, []string{"[[1],[2],[3],[\"a\"]]"})
+	values, err = getArgs(cf, reflect.ValueOf(ctx), nil, nil, []string{"[[1],[2],[3],[\"a\"]]"})
 	assert.EqualError(t, err, "Value [[1],[2],[3],[\"a\"]] was not passed in expected format [4][1]int", "should have returned error when array conversion returns error")
 	assert.Nil(t, values, "should not have returned value list on error")
 
@@ -1199,7 +1228,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf(GoodStruct{}),
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, ComponentMetadata{}, []string{"{\"Prop1\": \"Hello world\", \"prop2\": 1}"})
+	values = callGetArgsAndBasicTest(t, cf, ctx, nil, nil, []string{"{\"Prop1\": \"Hello world\", \"prop2\": 1}"})
 	testReflectValueEqualSlice(t, values, []GoodStruct{{"Hello world", 1, ""}})
 
 	// should error when struct properties are invalid
@@ -1207,7 +1236,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf(GoodStruct{}),
 	})
 
-	values, err = getArgs(cf, reflect.ValueOf(ctx), TransactionMetadata{}, ComponentMetadata{}, []string{"{\"Prop1\": \"Hello world\" \"prop2\": \"\"}"})
+	values, err = getArgs(cf, reflect.ValueOf(ctx), nil, nil, []string{"{\"Prop1\": \"Hello world\" \"prop2\": \"\"}"})
 	assert.EqualError(t, err, "Value {\"Prop1\": \"Hello world\" \"prop2\": \"\"} was not passed in expected format contractapi.GoodStruct", "should have returned error when array conversion returns error")
 	assert.Nil(t, values, "should not have returned value list on error")
 
@@ -1216,7 +1245,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf(AnotherGoodStruct{}),
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, ComponentMetadata{}, []string{"{\"StringProp\": \"Hello world\", \"StructProp\": {\"Prop1\": \"Goodbye world\", \"prop2\": 1}}"})
+	values = callGetArgsAndBasicTest(t, cf, ctx, nil, nil, []string{"{\"StringProp\": \"Hello world\", \"StructProp\": {\"Prop1\": \"Goodbye world\", \"prop2\": 1}}"})
 	testReflectValueEqualSlice(t, values, []AnotherGoodStruct{{"Hello world", GoodStruct{"Goodbye world", 1, ""}}})
 
 	// Should handle an array of slices of a basic type
@@ -1224,7 +1253,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf([4][]int{}),
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, ComponentMetadata{}, []string{"[[1, 2],[3],[4],[5]]"})
+	values = callGetArgsAndBasicTest(t, cf, ctx, nil, nil, []string{"[[1, 2],[3],[4],[5]]"})
 	testReflectValueEqualSlice(t, values, [][4][]int{{{1, 2}, {3}, {4}, {5}}})
 
 	// Should handle a slice of arrays of a basic type
@@ -1232,7 +1261,7 @@ func TestGetArgs(t *testing.T) {
 		reflect.TypeOf([][4]int{}),
 	})
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, TransactionMetadata{}, ComponentMetadata{}, []string{"[[1,2,3,4]]"})
+	values = callGetArgsAndBasicTest(t, cf, ctx, nil, nil, []string{"[[1,2,3,4]]"})
 	testReflectValueEqualSlice(t, values, [][][4]int{{{1, 2, 3, 4}}})
 
 	// Should error when a parameter given doesn't match the schema
@@ -1247,7 +1276,7 @@ func TestGetArgs(t *testing.T) {
 	txMetadata.Parameters = make([]ParameterMetadata, 1)
 	txMetadata.Parameters[0] = paramsMetadata
 
-	values, err = getArgs(cf, reflect.ValueOf(ctx), txMetadata, ComponentMetadata{}, []string{"-1"})
+	values, err = getArgs(cf, reflect.ValueOf(ctx), &txMetadata, nil, []string{"-1"})
 	assert.Nil(t, values, "should not return values when parameter data bad")
 	assert.Contains(t, err.Error(), "did not match schema", "should error when schema bad")
 
@@ -1264,7 +1293,7 @@ func TestGetArgs(t *testing.T) {
 	txMetadata.Parameters = make([]ParameterMetadata, 1)
 	txMetadata.Parameters[0] = paramsMetadata
 
-	values, err = getArgs(cf, reflect.ValueOf(ctx), txMetadata, ComponentMetadata{}, []string{"{}"})
+	values, err = getArgs(cf, reflect.ValueOf(ctx), &txMetadata, nil, []string{"{}"})
 	assert.Nil(t, values, "should not return values when parameter data bad")
 	assert.Contains(t, err.Error(), "did not match schema", "should error when schema bad")
 
@@ -1281,7 +1310,7 @@ func TestGetArgs(t *testing.T) {
 	txMetadata.Parameters = make([]ParameterMetadata, 1)
 	txMetadata.Parameters[0] = paramsMetadata
 
-	values, err = getArgs(cf, reflect.ValueOf(ctx), txMetadata, ComponentMetadata{}, []string{"{\"additionalProp\": \"some val\"}"})
+	values, err = getArgs(cf, reflect.ValueOf(ctx), &txMetadata, nil, []string{"{\"additionalProp\": \"some val\"}"})
 	assert.Nil(t, values, "should not return values when parameter data bad")
 	assert.Contains(t, err.Error(), "did not match schema", "should error when schema bad")
 
@@ -1301,7 +1330,7 @@ func TestGetArgs(t *testing.T) {
 	components.Schemas = make(map[string]ObjectMetadata)
 	components.Schemas["GoodStruct"] = goodStructMetadata
 
-	values = callGetArgsAndBasicTest(t, cf, ctx, txMetadata, components, []string{"{\"Prop1\": \"hello world\", \"prop2\": 1}"})
+	values = callGetArgsAndBasicTest(t, cf, ctx, &txMetadata, &components, []string{"{\"Prop1\": \"hello world\", \"prop2\": 1}"})
 	testReflectValueEqualSlice(t, values, []GoodStruct{{"hello world", 1, ""}})
 
 	// Should error when ref to component is bad
@@ -1317,7 +1346,7 @@ func TestGetArgs(t *testing.T) {
 	components.Schemas = make(map[string]ObjectMetadata)
 	components.Schemas["GoodStruct"] = goodStructMetadata
 
-	values, err = getArgs(cf, reflect.ValueOf(ctx), txMetadata, components, []string{"{\"Prop1\": \"hello world\", \"prop2\": 1}"})
+	values, err = getArgs(cf, reflect.ValueOf(ctx), &txMetadata, &components, []string{"{\"Prop1\": \"hello world\", \"prop2\": 1}"})
 	assert.Nil(t, values, "should not return values when parameter data bad")
 	assert.Contains(t, err.Error(), "Invalid schema for parameter \"some param\"", "should error when schema bad")
 
@@ -1348,7 +1377,7 @@ func TestGetArgs(t *testing.T) {
 	customMetadata.Properties["prop2"] = *prop2Schema
 	components.Schemas["GoodStruct"] = customMetadata
 
-	values, err = getArgs(cf, reflect.ValueOf(ctx), txMetadata, components, []string{"{\"Prop1\": \"hello world\", \"prop2\": 1}"})
+	values, err = getArgs(cf, reflect.ValueOf(ctx), &txMetadata, &components, []string{"{\"Prop1\": \"hello world\", \"prop2\": 1}"})
 	assert.Nil(t, values, "should not return values when parameter data bad")
 	assert.Contains(t, err.Error(), "did not match schema", "should error when schema bad")
 }
@@ -1389,70 +1418,90 @@ func TestHandleContractFunctionResponse(t *testing.T) {
 
 	// Should return string and nil error values when response contains string and nil error and expecting both
 	response = []reflect.Value{stringValue, nilErrorValue}
-	testHandleResponse(t, stringRefType, true, response, stringMsg, nil)
+	testHandleResponse(t, stringRefType, true, response, stringMsg, stringMsg, nil)
 
 	// Should return response string and nil for error when one value returned and expecting only string
 	response = []reflect.Value{stringValue}
-	testHandleResponse(t, stringRefType, false, response, stringMsg, nil)
+	testHandleResponse(t, stringRefType, false, response, stringMsg, stringMsg, nil)
 
 	// Should return blank string and response error when one value returned and expecting only error
 	response = []reflect.Value{errorValue}
-	testHandleResponse(t, nil, true, response, "", err)
+	testHandleResponse(t, nil, true, response, "", nil, err)
 
 	// Should return blank string and nil error when response is empty array and expecting no string or error
 	response = []reflect.Value{}
-	testHandleResponse(t, nil, false, response, "", nil)
+	testHandleResponse(t, nil, false, response, "", nil, nil)
 
 	// Should return basic types in string form
 	response = []reflect.Value{reflect.ValueOf(1)}
-	testHandleResponse(t, intRefType, false, response, "1", nil)
+	testHandleResponse(t, intRefType, false, response, "1", 1, nil)
 
 	response = []reflect.Value{reflect.ValueOf(int8(1))}
-	testHandleResponse(t, int8RefType, false, response, "1", nil)
+	testHandleResponse(t, int8RefType, false, response, "1", int8(1), nil)
 
 	response = []reflect.Value{reflect.ValueOf(int16(1))}
-	testHandleResponse(t, int16RefType, false, response, "1", nil)
+	testHandleResponse(t, int16RefType, false, response, "1", int16(1), nil)
 
 	response = []reflect.Value{reflect.ValueOf(int32(1))}
-	testHandleResponse(t, int32RefType, false, response, "1", nil)
+	testHandleResponse(t, int32RefType, false, response, "1", int32(1), nil)
 
 	response = []reflect.Value{reflect.ValueOf(int64(1))}
-	testHandleResponse(t, int64RefType, false, response, "1", nil)
+	testHandleResponse(t, int64RefType, false, response, "1", int64(1), nil)
 
 	response = []reflect.Value{reflect.ValueOf(uint(1))}
-	testHandleResponse(t, uintRefType, false, response, "1", nil)
+	testHandleResponse(t, uintRefType, false, response, "1", uint(1), nil)
 
 	response = []reflect.Value{reflect.ValueOf(uint8(1))}
-	testHandleResponse(t, uint8RefType, false, response, "1", nil)
+	testHandleResponse(t, uint8RefType, false, response, "1", uint8(1), nil)
 
 	response = []reflect.Value{reflect.ValueOf(uint16(1))}
-	testHandleResponse(t, uint16RefType, false, response, "1", nil)
+	testHandleResponse(t, uint16RefType, false, response, "1", uint16(1), nil)
 
 	response = []reflect.Value{reflect.ValueOf(uint32(1))}
-	testHandleResponse(t, uint32RefType, false, response, "1", nil)
+	testHandleResponse(t, uint32RefType, false, response, "1", uint32(1), nil)
 
 	response = []reflect.Value{reflect.ValueOf(uint64(1))}
-	testHandleResponse(t, uint64RefType, false, response, "1", nil)
+	testHandleResponse(t, uint64RefType, false, response, "1", uint64(1), nil)
 
 	response = []reflect.Value{reflect.ValueOf(float32(1.1))}
-	testHandleResponse(t, float32RefType, false, response, "1.1", nil)
+	testHandleResponse(t, float32RefType, false, response, "1.1", float32(1.1), nil)
 
 	response = []reflect.Value{reflect.ValueOf(float64(1.1))}
-	testHandleResponse(t, float64RefType, false, response, "1.1", nil)
+	testHandleResponse(t, float64RefType, false, response, "1.1", float64(1.1), nil)
+
+	// Should handle interface return when interface is not to be JSON marshalled
+	mc := myContract{}
+	mcFuncType := reflect.TypeOf(mc.AfterTransactionWithInterface)
+
+	response = []reflect.Value{reflect.ValueOf(float64(1.1))}
+	testHandleResponse(t, mcFuncType.Out(0), false, response, "1.1", float64(1.1), nil)
+
+	// Should handle interface return when interface is to be JSON marshalled
+	response = []reflect.Value{reflect.ValueOf([]int{1, 2, 3, 4})}
+	testHandleResponse(t, mcFuncType.Out(0), false, response, "[1,2,3,4]", []int{1, 2, 3, 4}, nil)
+
+	// Should handle interface return when interface is returned as nil
+	response = []reflect.Value{reflect.ValueOf(nil)}
+	testHandleResponse(t, mcFuncType.Out(0), false, response, "", nil, nil)
+
+	// Should handle interface return when interface is returned as nil but of type
+	var strPtr *string
+	response = []reflect.Value{reflect.ValueOf(strPtr)}
+	testHandleResponse(t, mcFuncType.Out(0), false, response, "", strPtr, nil)
 
 	// Should return array responses as JSON strings
 	intArray := [4]int{1, 2, 3, 4}
 	response = []reflect.Value{reflect.ValueOf(intArray)}
-	testHandleResponse(t, reflect.TypeOf(intArray), false, response, "[1,2,3,4]", nil)
+	testHandleResponse(t, reflect.TypeOf(intArray), false, response, "[1,2,3,4]", intArray, nil)
 
 	intMdArray := [4][]int{{1}, {2, 3}, {4, 5, 6}, {7}}
 	response = []reflect.Value{reflect.ValueOf(intMdArray)}
-	testHandleResponse(t, reflect.TypeOf(intMdArray), false, response, "[[1],[2,3],[4,5,6],[7]]", nil)
+	testHandleResponse(t, reflect.TypeOf(intMdArray), false, response, "[[1],[2,3],[4,5,6],[7]]", intMdArray, nil)
 
 	// Should return a json object for a struct
 	myStruct := GoodStruct{"Hello World", 100, "Goodbye"}
 	response = []reflect.Value{reflect.ValueOf(myStruct)}
-	testHandleResponse(t, reflect.TypeOf(myStruct), false, response, "{\"Prop1\":\"Hello World\",\"prop2\":100}", nil)
+	testHandleResponse(t, reflect.TypeOf(myStruct), false, response, "{\"Prop1\":\"Hello World\",\"prop2\":100}", myStruct, nil)
 
 	// Should return a json object for a pointer to struct
 	myPtrStruct := new(GoodStruct)
@@ -1460,22 +1509,23 @@ func TestHandleContractFunctionResponse(t *testing.T) {
 	myPtrStruct.Prop2 = 100
 	myPtrStruct.shouldIgnore = "Goodbye"
 	response = []reflect.Value{reflect.ValueOf(myPtrStruct)}
-	testHandleResponse(t, reflect.TypeOf(myPtrStruct), false, response, "{\"Prop1\":\"Hello World\",\"prop2\":100}", nil)
+	testHandleResponse(t, reflect.TypeOf(myPtrStruct), false, response, "{\"Prop1\":\"Hello World\",\"prop2\":100}", myPtrStruct, nil)
 
 	// Should return slice responses as JSON strings
 	intSlice := []int{1, 2, 3, 4}
 	response = []reflect.Value{reflect.ValueOf(intSlice)}
-	testHandleResponse(t, reflect.TypeOf(intSlice), false, response, "[1,2,3,4]", nil)
+	testHandleResponse(t, reflect.TypeOf(intSlice), false, response, "[1,2,3,4]", intSlice, nil)
 
 	intMdSlice := [][]int{{1}, {2, 3}, {4, 5, 6}, {7}}
 	response = []reflect.Value{reflect.ValueOf(intMdSlice)}
-	testHandleResponse(t, reflect.TypeOf(intMdSlice), false, response, "[[1],[2,3],[4,5,6],[7]]", nil)
+	testHandleResponse(t, reflect.TypeOf(intMdSlice), false, response, "[[1],[2,3],[4,5,6],[7]]", intMdSlice, nil)
 }
 
 func TestCall(t *testing.T) {
 	var expectedStr string
 	var expectedErr error
 	var actualStr string
+	var actualValue interface{}
 	var actualErr error
 
 	cf := new(contractFunction)
@@ -1486,17 +1536,19 @@ func TestCall(t *testing.T) {
 	cf = newContractFunctionFromFunc(mc.UsesContext, basicContextPtrType)
 
 	expectedStr, expectedErr = mc.UsesContext(ctx, standardAssetID, standardValue)
-	actualStr, actualErr = cf.call(reflect.ValueOf(ctx), TransactionMetadata{}, ComponentMetadata{}, standardAssetID, standardValue)
+	actualStr, actualValue, actualErr = cf.call(reflect.ValueOf(ctx), nil, nil, standardAssetID, standardValue)
 
 	assert.Equal(t, expectedStr, actualStr, "Should have returned string as a regular call to UsesContext would")
+	assert.Equal(t, expectedStr, actualValue, "Should have returned the string value returned by UsesContext as actual value")
 	assert.Equal(t, expectedErr, actualErr, "Should have returned error as a regular call to UsesContext would")
 
 	// Should call function of contract function with correct params and return expected values for function returning nothing
 	cf = newContractFunctionFromFunc(mc.ReturnsNothing, basicContextPtrType)
 
-	actualStr, actualErr = cf.call(reflect.ValueOf(ctx), TransactionMetadata{}, ComponentMetadata{})
+	actualStr, actualValue, actualErr = cf.call(reflect.ValueOf(ctx), nil, nil)
 
 	assert.Equal(t, "", actualStr, "Should have returned blank string")
+	assert.Nil(t, actualValue, "should have returned nil when no value defined to return")
 	assert.Nil(t, actualErr, "Should have returned nil")
 
 	// Should call function of contract function with correct params and return expected values for function returning string
@@ -1504,9 +1556,10 @@ func TestCall(t *testing.T) {
 
 	expectedStr = mc.ReturnsString()
 
-	actualStr, actualErr = cf.call(reflect.ValueOf(ctx), TransactionMetadata{}, ComponentMetadata{})
+	actualStr, actualValue, actualErr = cf.call(reflect.ValueOf(ctx), nil, nil)
 
 	assert.Equal(t, expectedStr, actualStr, "Should have returned string as regular call to ReturnsString would")
+	assert.Equal(t, expectedStr, actualValue, "Should have returned string that ReturnsString returns as the actual value")
 	assert.Nil(t, actualErr, "Should have returned nil")
 
 	// Should call function of contract function with correct params and return expected values for function returning string
@@ -1514,9 +1567,10 @@ func TestCall(t *testing.T) {
 
 	expectedStr = mc.UsesBasics("some string", true, 123, 45, 6789, 101112, 131415, 123, 45, 6789, 101112, 131415, 1.1, 2.2, 65, 66)
 
-	actualStr, actualErr = cf.call(reflect.ValueOf(ctx), TransactionMetadata{}, ComponentMetadata{}, "some string", "true", "123", "45", "6789", "101112", "131415", "123", "45", "6789", "101112", "131415", "1.1", "2.2", "65", "66")
+	actualStr, actualValue, actualErr = cf.call(reflect.ValueOf(ctx), nil, nil, "some string", "true", "123", "45", "6789", "101112", "131415", "123", "45", "6789", "101112", "131415", "1.1", "2.2", "65", "66")
 
-	assert.Equal(t, expectedStr, actualStr, "Should have returned string as regular call to ReturnsString would")
+	assert.Equal(t, expectedStr, actualStr, "Should have returned string as regular call to UsesBasics would")
+	assert.Equal(t, expectedStr, actualValue, "Should have returned string that UsesBasics returns as the actual value")
 	assert.Nil(t, actualErr, "Should have returned nil")
 
 	// Should call function of contract function with correct params and return expected values for function returning error
@@ -1524,9 +1578,10 @@ func TestCall(t *testing.T) {
 
 	expectedErr = mc.ReturnsError()
 
-	actualStr, actualErr = cf.call(reflect.ValueOf(ctx), TransactionMetadata{}, ComponentMetadata{})
+	actualStr, actualValue, actualErr = cf.call(reflect.ValueOf(ctx), nil, nil)
 
 	assert.Equal(t, "", actualStr, "Should have returned blank string")
+	assert.Nil(t, actualValue, "should be nil as ReturnsError returns no success type")
 	assert.EqualError(t, actualErr, expectedErr.Error(), "Should have returned error as a regular call to ReturnsError would")
 
 	// Should return error when getArgs returns an error
@@ -1534,9 +1589,10 @@ func TestCall(t *testing.T) {
 
 	expectedErr = errors.New("Value [1] was not passed in expected format [1]string")
 
-	actualStr, actualErr = cf.call(reflect.ValueOf(ctx), TransactionMetadata{}, ComponentMetadata{}, "[1]")
+	actualStr, actualValue, actualErr = cf.call(reflect.ValueOf(ctx), nil, nil, "[1]")
 
 	assert.Equal(t, "", actualStr, "Should have returned blank string")
+	assert.Nil(t, nil, "Should have returned nil as getArgs causes an error")
 	assert.EqualError(t, actualErr, expectedErr.Error(), "Should have returned error from getArgs would")
 }
 
