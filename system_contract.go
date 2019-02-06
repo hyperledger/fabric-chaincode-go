@@ -24,7 +24,9 @@ func (sc *systemContract) setMetadata(metadata string) {
 }
 
 // GetMetadata returns JSON formatted metadata of chaincode
-// the system contract is part of.
+// the system contract is part of. This metadata is composed
+// of reflected metadata combined with the metadata file
+// if used
 func (sc *systemContract) GetMetadata() string {
 	return sc.metadata
 }

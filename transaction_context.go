@@ -19,7 +19,7 @@ import (
 )
 
 // TransactionContextInterface defines functions a valid transaction context
-// should have. Transaction context's set for contract's to be used in chaincode
+// should have. Transaction context's set for contracts to be used in chaincode
 // must implement this interface.
 type TransactionContextInterface interface {
 	// SetStub should provide a way to pass the stub from a chaincode transaction

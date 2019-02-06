@@ -50,7 +50,7 @@ const SystemContractName = "org.hyperledger.fabric"
 
 // CreateNewChaincode creates a new chaincode using contracts passed. The function parses each
 // of the passed functions and stores details about their make-up to be used by the chaincode.
-// Public functions of the contracts are stored an are made callable in the chaincode. The function
+// Public functions of the contracts are stored and are made callable in the chaincode. The function
 // will panic if contracts are invalid e.g. public functions take in illegal types. A system contract is added
 // to the chaincode which provides functionality for getting the metadata of the chaincode. The generated
 // metadata is a JSON formatted MetadataContractChaincode containing each contract as a name and details
@@ -106,10 +106,11 @@ func (cc *ContractChaincode) Init(stub shim.ChaincodeStubInterface) peer.Respons
 // to shim.Error otherwise the value returned from the named function is returned as shim.Success.
 // If an unknown name is passed as part of the first arg a shim.Error is returned. If a valid
 // name is passed but the function name is unknown then the contract with that name's
-// unknown function is called and its value returned as success or error depending on it return. If no
+// unknown function is called and its value returned as success or error depending on its return. If no
 // unknown function is defined for the contract then shim.Error is returned by Invoke. In the case of
 // unknown function names being passed (and the unknown handler returns an error) or the named function returning an error then the after function
-// if defined is not called. The same transaction context is passed as a pointer to before, after, named
+// if defined is not called. If the named function or unknown function handler returns a non-error type then then the after transaction
+// is sent this value. The same transaction context is passed as a pointer to before, after, named
 // and unknown functions on each Invoke. If no contract name is passed then the default contract is used.
 func (cc *ContractChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Response {
 	nsFcn, params := stub.GetFunctionAndParameters()

@@ -22,7 +22,7 @@ import (
 // be used in chaincode must implement this interface.
 type ContractInterface interface {
 	// GetVersion returns the the version of the contract. If the function returns a
-	// blank string then "latest" is used for the version.
+	// blank string then "latest" is used for the version in the metadata.
 	GetVersion() string
 
 	// GetUnknownTransaction returns the unknown function to be used for a contract.
@@ -37,26 +37,30 @@ type ContractInterface interface {
 	// When the contract is used in creating a new chaincode this function is called
 	// and the before transaction returned is stored. The before function is then
 	// called before the named function on each Init/Invoke of that contract via the
-	// chaincode. If an error is returned then no before function is called on Init/
-	// Invoke.
+	// chaincode. When called the before function is passed no extra args, only the
+	// the transaction context (if specified to take it). If an error is returned
+	// then no before function is called on Init/Invoke.
 	GetBeforeTransaction() (interface{}, error)
 
 	// GetAfterTransaction returns the after function to be used for a contract.
 	// When the contract is used in creating a new chaincode this function is called
 	// and the after transaction returned is stored. The after function is then
 	// called after the named function on each Init/Invoke of that contract via the
-	// chaincode. If an error is returned then no after function is called on Init/
+	// chaincode. When called the after function is passed the returned value of the
+	// named function and the transaction context (if the function takes the transaction
+	// context). If an error is returned then no after function is called on Init/
 	// Invoke.
 	GetAfterTransaction() (interface{}, error)
 
 	// GetName returns the name of the contract. When the contract is used
 	// in creating a new chaincode this function is called and the name returned
 	// is then used to identify the contract within the chaincode on Init/Invoke calls.
+	// This function can return a blank string but this is undefined behaviour.
 	GetName() string
 
 	// GetTransactionContextHandler returns the TransactionContextInterface that is
 	// used by the functions of the contract. When the contract is used in creating
-	// and new chaincode this function is called and the transaction context returned
+	// a new chaincode this function is called and the transaction context returned
 	// is stored. When the chaincode is called via Init/Invoke a transaction context
 	// of the stored type is created and sent as a parameter to the named contract
 	// function (and before/after and unknown functions) if the function requires the
