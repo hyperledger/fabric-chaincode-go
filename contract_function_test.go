@@ -1476,10 +1476,6 @@ func TestHandleContractFunctionResponse(t *testing.T) {
 	response = []reflect.Value{reflect.ValueOf(float64(1.1))}
 	testHandleResponse(t, mcFuncType.Out(0), false, response, "1.1", float64(1.1), nil)
 
-	// Should handle interface return when interface is to be JSON marshalled
-	response = []reflect.Value{reflect.ValueOf([]int{1, 2, 3, 4})}
-	testHandleResponse(t, mcFuncType.Out(0), false, response, "[1,2,3,4]", []int{1, 2, 3, 4}, nil)
-
 	// Should handle interface return when interface is returned as nil
 	response = []reflect.Value{reflect.ValueOf(nil)}
 	testHandleResponse(t, mcFuncType.Out(0), false, response, "", nil, nil)

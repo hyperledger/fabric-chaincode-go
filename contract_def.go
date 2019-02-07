@@ -14,10 +14,6 @@
 
 package contractapi
 
-import (
-	"errors"
-)
-
 // ContractInterface defines functions a valid contract should have. Contracts to
 // be used in chaincode must implement this interface.
 type ContractInterface interface {
@@ -29,18 +25,18 @@ type ContractInterface interface {
 	// When the contract is used in creating a new chaincode this function is called
 	// and the unknown transaction returned is stored. The unknown function is then
 	// called in cases where an unknown function name is passed for a call to the
-	// contract via Init/Invoke of the chaincode. If an error is returned the
+	// contract via Init/Invoke of the chaincode. If nil is returned the
 	// chaincode uses its default handling for unknown function names
-	GetUnknownTransaction() (interface{}, error)
+	GetUnknownTransaction() interface{}
 
 	// GetBeforeTransaction returns the before function to be used for a contract.
 	// When the contract is used in creating a new chaincode this function is called
 	// and the before transaction returned is stored. The before function is then
 	// called before the named function on each Init/Invoke of that contract via the
 	// chaincode. When called the before function is passed no extra args, only the
-	// the transaction context (if specified to take it). If an error is returned
+	// the transaction context (if specified to take it). If nil is returned
 	// then no before function is called on Init/Invoke.
-	GetBeforeTransaction() (interface{}, error)
+	GetBeforeTransaction() interface{}
 
 	// GetAfterTransaction returns the after function to be used for a contract.
 	// When the contract is used in creating a new chaincode this function is called
@@ -48,9 +44,9 @@ type ContractInterface interface {
 	// called after the named function on each Init/Invoke of that contract via the
 	// chaincode. When called the after function is passed the returned value of the
 	// named function and the transaction context (if the function takes the transaction
-	// context). If an error is returned then no after function is called on Init/
+	// context). If nil is returned then no after function is called on Init/
 	// Invoke.
-	GetAfterTransaction() (interface{}, error)
+	GetAfterTransaction() interface{}
 
 	// GetName returns the name of the contract. When the contract is used
 	// in creating a new chaincode this function is called and the name returned
@@ -95,13 +91,9 @@ func (c *Contract) SetUnknownTransaction(fn interface{}) {
 	c.unknownTransaction = fn
 }
 
-// GetUnknownTransaction returns the current set unknownTransaction
-// and errors if not set
-func (c *Contract) GetUnknownTransaction() (interface{}, error) {
-	if c.unknownTransaction == nil {
-		return nil, errors.New("unknown transaction not set")
-	}
-	return c.unknownTransaction, nil
+// GetUnknownTransaction returns the current set unknownTransaction, may be nil
+func (c *Contract) GetUnknownTransaction() interface{} {
+	return c.unknownTransaction
 }
 
 // SetBeforeTransaction sets function for contract's beforeTransaction.
@@ -109,13 +101,9 @@ func (c *Contract) SetBeforeTransaction(fn interface{}) {
 	c.beforeTransaction = fn
 }
 
-// GetBeforeTransaction returns the current set beforeTransaction
-// and errors if not set
-func (c *Contract) GetBeforeTransaction() (interface{}, error) {
-	if c.beforeTransaction == nil {
-		return nil, errors.New("before transaction not set")
-	}
-	return c.beforeTransaction, nil
+// GetBeforeTransaction returns the current set beforeTransaction, may be nil
+func (c *Contract) GetBeforeTransaction() interface{} {
+	return c.beforeTransaction
 }
 
 // SetAfterTransaction sets function for contract's afterTransaction.
@@ -123,13 +111,9 @@ func (c *Contract) SetAfterTransaction(fn interface{}) {
 	c.afterTransaction = fn
 }
 
-// GetAfterTransaction returns the current set afterTransaction
-// and errors if not set.
-func (c *Contract) GetAfterTransaction() (interface{}, error) {
-	if c.afterTransaction == nil {
-		return nil, errors.New("after transaction not set")
-	}
-	return c.afterTransaction, nil
+// GetAfterTransaction returns the current set afterTransaction, may be nil
+func (c *Contract) GetAfterTransaction() interface{} {
+	return c.afterTransaction
 }
 
 // SetName sets the name for the contract.

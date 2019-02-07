@@ -98,9 +98,9 @@ func testContractChaincodeContractRepresentsContract(t *testing.T, ccns contract
 	assert.Equal(t, ccns.transactionContextHandler, transactionContextHandler, "should have correct transaction context set")
 	assert.Equal(t, ccns.transactionContextPtrHandler, transactionContextPtrHandler, "should have correct transaction context set")
 
-	ut, err := contract.GetUnknownTransaction()
+	ut := contract.GetUnknownTransaction()
 
-	if err != nil {
+	if ut == nil {
 		assert.Nil(t, ccns.unknownTransaction, "should be nil when contract has no unknown transaction")
 	} else {
 		assert.Equal(t, ccns.unknownTransaction, newTransactionHandler(ut, transactionContextPtrHandler, unknown), "should have set correct unknown transaction when set")
@@ -112,17 +112,17 @@ func testContractChaincodeContractRepresentsContract(t *testing.T, ccns contract
 		assert.Equal(t, contract.GetVersion(), ccns.version, "should set correct version when get version blank")
 	}
 
-	bt, err := contract.GetBeforeTransaction()
+	bt := contract.GetBeforeTransaction()
 
-	if err != nil {
+	if bt == nil {
 		assert.Nil(t, ccns.beforeTransaction, "should be nil when contract has no before transaction")
 	} else {
 		assert.Equal(t, ccns.beforeTransaction, newTransactionHandler(bt, transactionContextPtrHandler, before), "should have set correct before transaction when set")
 	}
 
-	at, err := contract.GetAfterTransaction()
+	at := contract.GetAfterTransaction()
 
-	if err != nil {
+	if at == nil {
 		assert.Nil(t, ccns.afterTransaction, "should be nil when contract has no after transaction")
 	} else {
 		assert.Equal(t, ccns.afterTransaction, newTransactionHandler(at, transactionContextPtrHandler, after), "should have set correct after transaction when set")

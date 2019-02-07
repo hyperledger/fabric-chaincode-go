@@ -213,21 +213,21 @@ func (cc *ContractChaincode) addContract(contract ContractInterface, excludeFunc
 	scT := reflect.PtrTo(reflect.TypeOf(contract).Elem())
 	scV := reflect.ValueOf(contract).Elem().Addr()
 
-	ut, err := contract.GetUnknownTransaction()
+	ut := contract.GetUnknownTransaction()
 
-	if err == nil && ut != nil {
+	if ut != nil {
 		ccn.unknownTransaction = newTransactionHandler(ut, ccn.transactionContextPtrHandler, unknown)
 	}
 
-	bt, err := contract.GetBeforeTransaction()
+	bt := contract.GetBeforeTransaction()
 
-	if err == nil && bt != nil {
+	if bt != nil {
 		ccn.beforeTransaction = newTransactionHandler(bt, ccn.transactionContextPtrHandler, before)
 	}
 
-	at, err := contract.GetAfterTransaction()
+	at := contract.GetAfterTransaction()
 
-	if err == nil && at != nil {
+	if at != nil {
 		ccn.afterTransaction = newTransactionHandler(at, ccn.transactionContextPtrHandler, after)
 	}
 

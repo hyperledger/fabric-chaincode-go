@@ -35,22 +35,19 @@ func TestSetUnknownTransaction(t *testing.T) {
 func TestGetUnknownTransaction(t *testing.T) {
 	var mc myContract
 	var unknownFn interface{}
-	var err error
 	// Should throw an error when unknown transaction not set
 	mc = myContract{}
 
-	unknownFn, err = mc.GetUnknownTransaction()
+	unknownFn = mc.GetUnknownTransaction()
 
-	assert.EqualError(t, err, "unknown transaction not set", "should return an error when unknown transaction not set")
 	assert.Nil(t, unknownFn, "should not return contractFunction when unknown transaction not set")
 
 	// Should return the call value of the stored unknown transaction when set
 	mc = myContract{}
 	mc.unknownTransaction = mc.ReturnsInt
 
-	unknownFn, err = mc.GetUnknownTransaction()
+	unknownFn = mc.GetUnknownTransaction()
 
-	assert.Nil(t, err, "should not return error when unknown function set")
 	assert.Equal(t, mc.ReturnsInt(), unknownFn.(func() int)(), "function returned should be same value as set for unknown transaction")
 }
 
@@ -65,22 +62,19 @@ func TestSetBeforeTransaction(t *testing.T) {
 func TestGetBeforeTransaction(t *testing.T) {
 	var mc myContract
 	var beforeFn interface{}
-	var err error
 	// Should throw an error when before transaction not set
 	mc = myContract{}
 
-	beforeFn, err = mc.GetBeforeTransaction()
+	beforeFn = mc.GetBeforeTransaction()
 
-	assert.EqualError(t, err, "before transaction not set", "should return an error when before transaction not set")
 	assert.Nil(t, beforeFn, "should not return contractFunction when before transaction not set")
 
 	// Should return the call value of the stored before transaction when set
 	mc = myContract{}
 	mc.beforeTransaction = mc.ReturnsInt
 
-	beforeFn, err = mc.GetBeforeTransaction()
+	beforeFn = mc.GetBeforeTransaction()
 
-	assert.Nil(t, err, "should not return error when before transaction set")
 	assert.Equal(t, mc.ReturnsInt(), beforeFn.(func() int)(), "function returned should be same value as set for before transaction")
 }
 
@@ -95,22 +89,19 @@ func TestSetAfterTransaction(t *testing.T) {
 func TestGetAfterTransaction(t *testing.T) {
 	var mc myContract
 	var afterFn interface{}
-	var err error
 	// Should throw an error when after transaction not set
 	mc = myContract{}
 
-	afterFn, err = mc.GetAfterTransaction()
+	afterFn = mc.GetAfterTransaction()
 
-	assert.EqualError(t, err, "after transaction not set", "should return an error when after transaction not set")
 	assert.Nil(t, afterFn, "should not return contractFunction when after transaction not set")
 
 	// Should return the call value of the stored after transaction when set
 	mc = myContract{}
 	mc.afterTransaction = mc.ReturnsInt
 
-	afterFn, err = mc.GetAfterTransaction()
+	afterFn = mc.GetAfterTransaction()
 
-	assert.Nil(t, err, "should not return error when after transaction set")
 	assert.Equal(t, mc.ReturnsInt(), afterFn.(func() int)(), "function returned should be same value as set for after transaction")
 }
 

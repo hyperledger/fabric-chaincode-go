@@ -375,6 +375,7 @@ func handleContractFunctionResponse(response []reflect.Value, function contractF
 				if isMarshallingType(function.returns.success) || function.returns.success.Kind() == reflect.Interface && isMarshallingType(successResponse.Type()) {
 					bytes, _ := json.Marshal(successResponse.Interface())
 					successString = string(bytes)
+					logger.Info(successString)
 				} else {
 					successString = fmt.Sprint(successResponse.Interface())
 				}
