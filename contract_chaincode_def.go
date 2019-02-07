@@ -20,8 +20,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-openapi/spec"
-
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	"github.com/hyperledger/fabric/protos/peer"
 )
@@ -298,23 +296,7 @@ func (cc *ContractChaincode) reflectMetadata() ContractChaincodeMetadata {
 					panic(fmt.Sprintf("Failed to generate metadata. Invalid function success return type. %s", err))
 				}
 
-				param := ParameterMetadata{}
-				param.Name = "success"
-				param.Schema = *schema
-
-				transactionMetadata.Returns = append(transactionMetadata.Returns, param)
-			}
-
-			if fn.returns.error {
-				schema := spec.Schema{}
-				schema.Type = []string{"object"}
-				schema.Format = "error"
-
-				param := ParameterMetadata{}
-				param.Name = "error"
-				param.Schema = schema
-
-				transactionMetadata.Returns = append(transactionMetadata.Returns, param)
+				transactionMetadata.Returns = schema
 			}
 
 			contractMetadata.Transactions = append(contractMetadata.Transactions, transactionMetadata)

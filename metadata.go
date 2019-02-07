@@ -71,7 +71,7 @@ type ParameterMetadata struct {
 // TransactionMetadata contains information on what makes up a transaction
 type TransactionMetadata struct {
 	Parameters []ParameterMetadata `json:"parameters,omitempty"`
-	Returns    []ParameterMetadata `json:"returns,omitempty"`
+	Returns    *spec.Schema        `json:"returns,omitempty"`
 	Tag        []string            `json:"tag,omitempty"`
 	Name       string              `json:"name"`
 }

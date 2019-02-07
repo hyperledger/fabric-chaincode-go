@@ -175,14 +175,7 @@
                     "$ref": "#/definitions/parametersList"
                 },
                 "returns": {
-                    "oneOf": [
-                        {
-                            "$ref": "#/definitions/parameter"
-                        },
-                        {
-                            "$ref": "#/definitions/parametersList"
-                        }
-                    ]
+                    "$ref": "#/definitions/schema"
                 }
             }
         },

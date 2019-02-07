@@ -51,22 +51,10 @@ func testConvertCC(t *testing.T, testData []simpleTestContract) {
 	successSchema := spec.Schema{}
 	successSchema.Type = []string{"string"}
 
-	errorSchema := spec.Schema{}
-	errorSchema.Type = []string{"object"}
-	errorSchema.Format = "error"
-
-	successMetadata := ParameterMetadata{}
-	successMetadata.Name = "success"
-	successMetadata.Schema = successSchema
-
-	errorMetadata := ParameterMetadata{}
-	errorMetadata.Name = "error"
-	errorMetadata.Schema = errorSchema
-
 	simpleContractFunctionMetadata := TransactionMetadata{}
 	simpleContractFunctionMetadata.Name = "DoSomething"
 	simpleContractFunctionMetadata.Tag = []string{"submitTx"}
-	simpleContractFunctionMetadata.Returns = []ParameterMetadata{successMetadata, errorMetadata}
+	simpleContractFunctionMetadata.Returns = &successSchema
 
 	// Test that the data set for each contract in chaincode is correct e.g. unknown fn set etc
 	for i := 0; i < len(testData); i++ {
@@ -109,9 +97,7 @@ func testConvertCC(t *testing.T, testData []simpleTestContract) {
 
 	systemContractFunctionMetadata := TransactionMetadata{}
 	systemContractFunctionMetadata.Name = "GetMetadata"
-	systemContractFunctionMetadata.Returns = []ParameterMetadata{
-		successMetadata,
-	}
+	systemContractFunctionMetadata.Returns = &successSchema
 
 	systemContractMetadata := ContractMetadata{}
 	systemContractMetadata.Info = spec.Info{}

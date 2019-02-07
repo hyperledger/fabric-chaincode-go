@@ -247,10 +247,6 @@ func TestReflectMetadata(t *testing.T) {
 	someStructMetadata.AdditionalProperties = false
 	someStructMetadata.Required = []string{"Prop1"}
 
-	errorSchema := spec.Schema{}
-	errorSchema.Type = []string{"object"}
-	errorSchema.Format = "error"
-
 	someFunctionContractFunction := new(contractFunction)
 
 	someFunctionMetadata := TransactionMetadata{}
@@ -285,18 +281,7 @@ func TestReflectMetadata(t *testing.T) {
 		param1AsParam,
 	}
 
-	successAsParam := ParameterMetadata{}
-	successAsParam.Name = "success"
-	successAsParam.Schema = *spec.RefSchema("#/components/schemas/SomeStruct")
-
-	errorAsParam := ParameterMetadata{}
-	errorAsParam.Name = "error"
-	errorAsParam.Schema = errorSchema
-
-	anotherFunctionMetadata.Returns = []ParameterMetadata{
-		successAsParam,
-		errorAsParam,
-	}
+	anotherFunctionMetadata.Returns = spec.RefSchema("#/components/schemas/SomeStruct")
 	anotherFunctionMetadata.Name = "AnotherFunction"
 	anotherFunctionMetadata.Tag = []string{"submitTx"}
 
