@@ -242,7 +242,6 @@ func TestReflectMetadata(t *testing.T) {
 	}
 
 	someStructMetadata := ObjectMetadata{}
-	someStructMetadata.ID = "SomeStruct"
 	someStructMetadata.Properties = map[string]spec.Schema{"Prop1": *spec.StringProperty()}
 	someStructMetadata.AdditionalProperties = false
 	someStructMetadata.Required = []string{"Prop1"}

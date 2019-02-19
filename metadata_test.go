@@ -90,7 +90,6 @@ func TestAppend(t *testing.T) {
 	source.Contracts["some contract"] = someContract
 
 	someComponent := ObjectMetadata{}
-	someComponent.ID = "some special asset"
 
 	source.Components = ComponentMetadata{}
 	source.Components.Schemas = make(map[string]ObjectMetadata)
@@ -149,7 +148,6 @@ func TestAppend(t *testing.T) {
 
 	// should use own components when components is empty
 	anotherComponent := ObjectMetadata{}
-	anotherComponent.ID = "another special asset"
 
 	ccm = ContractChaincodeMetadata{}
 	ccm.Components = ComponentMetadata{}

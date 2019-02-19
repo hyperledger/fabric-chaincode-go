@@ -38,7 +38,6 @@ var anotherGoodStructPropertiesMap = map[string]spec.Schema{
 }
 
 var expectedAnotherGoodStructMetadata = ObjectMetadata{
-	ID:                   "AnotherGoodStruct",
 	Properties:           anotherGoodStructPropertiesMap,
 	Required:             []string{"StringProp", "StructProp"},
 	AdditionalProperties: false,
@@ -353,13 +352,34 @@ func TestBuildSliceSchema(t *testing.T) {
 	assert.Equal(t, expectedErr, err, "should have same error as buildArrayOrSliceSchema")
 }
 
+func TestBuildMapSchema(t *testing.T) {
+	var schema *spec.Schema
+	var err error
+
+	// Should return error when getSchema would
+	schema, err = buildMapSchema(reflect.ValueOf(map[string]complex64{}), nil)
+	_, expectedErr := getSchema(reflect.TypeOf(complex64(1)), nil)
+
+	assert.Nil(t, schema, "spec should be nil when buildArrayOrSliceSchema fails from buildSliceSchema")
+	assert.Equal(t, expectedErr, err, "should have same error as buildArrayOrSliceSchema")
+
+	// Should return map spec
+	schema, err = buildMapSchema(reflect.ValueOf(map[string]int8{}), nil)
+	lowerSchema, _ := getSchema(reflect.TypeOf(int8(1)), nil)
+	expectedSchema := spec.MapProperty(lowerSchema)
+
+	assert.Nil(t, err, "should have no error for valid map value")
+	assert.Equal(t, expectedSchema, schema, "should return expected schema")
+}
+
 func TestAddComponentIfNotExists(t *testing.T) {
 	var err error
 	var components *ComponentMetadata
 
 	// Should return nil when object with that name already in components map
 	someObject := ObjectMetadata{}
-	someObject.ID = "some ID"
+	someObject.Properties = make(map[string]spec.Schema)
+	someObject.Properties["some property"] = spec.Schema{}
 
 	components = new(ComponentMetadata)
 	components.Schemas = make(map[string]ObjectMetadata)
@@ -369,7 +389,9 @@ func TestAddComponentIfNotExists(t *testing.T) {
 
 	assert.Nil(t, err, "should return nil when already exists")
 	assert.Equal(t, len(components.Schemas), 1, "should not have added a new component")
-	assert.Equal(t, components.Schemas["GoodStruct"].ID, "some ID", "should not overwrite existing component")
+
+	_, ok := components.Schemas["GoodStruct"].Properties["some property"]
+	assert.True(t, ok, "should not overwrite existing component")
 
 	// Should return nil when object with that name already in components map and object is pointer
 	components = new(ComponentMetadata)
@@ -380,7 +402,9 @@ func TestAddComponentIfNotExists(t *testing.T) {
 
 	assert.Nil(t, err, "should return nil when already exists")
 	assert.Equal(t, len(components.Schemas), 1, "should not have added a new component")
-	assert.Equal(t, components.Schemas["GoodStruct"].ID, "some ID", "should not overwrite existing component")
+
+	_, ok = components.Schemas["GoodStruct"].Properties["some property"]
+	assert.True(t, ok, "should not overwrite existing component")
 
 	// Should build up schema and to components
 	components = new(ComponentMetadata)
@@ -626,6 +650,12 @@ func TestGetSchema(t *testing.T) {
 
 	// Should handle a slice of array
 	testGetSchema(t, reflect.TypeOf([][1]string{[1]string{}}), spec.ArrayProperty(stringArraySchema))
+
+	// Should handle a map
+	testGetSchema(t, reflect.TypeOf(map[string]int{}), spec.MapProperty(intTypeVar.getSchema()))
+
+	// Should handle a of map map
+	testGetSchema(t, reflect.TypeOf(map[string]map[string]int{}), spec.MapProperty(spec.MapProperty(intTypeVar.getSchema())))
 
 	// Should return error when multidimensional array/slice/array is bad
 	badMixedArr := [1][][0]string{}

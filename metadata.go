@@ -85,7 +85,6 @@ type ContractMetadata struct {
 
 // ObjectMetadata description of an asset
 type ObjectMetadata struct {
-	ID                   string                 `json:"$id"`
 	Properties           map[string]spec.Schema `json:"properties"`
 	Required             []string               `json:"required"`
 	AdditionalProperties bool                   `json:"additionalProperties"`

@@ -33,6 +33,8 @@ import (
 var badType = reflect.TypeOf(complex64(1))
 var badArrayType = reflect.TypeOf([1]complex64{})
 var badSliceType = reflect.TypeOf([]complex64{})
+var badMapItemType = reflect.TypeOf(map[string]complex64{})
+var badMapKeyType = reflect.TypeOf(map[complex64]string{})
 
 var errorType = reflect.TypeOf((*error)(nil)).Elem()
 
@@ -490,10 +492,10 @@ func testContractFunctionUsingReturnsString(t *testing.T, mc *myContract, cf *co
 	assert.Equal(t, expectedCFReturns, cf.returns, "should have correct return")
 }
 
-func testCreateArraySliceOrStructErrors(t *testing.T, json string, arrType reflect.Type) {
+func testCreateArraySliceMapOrStructErrors(t *testing.T, json string, arrType reflect.Type) {
 	t.Helper()
 
-	val, err := createArraySliceOrStruct(json, arrType)
+	val, err := createArraySliceMapOrStruct(json, arrType)
 
 	assert.EqualError(t, err, fmt.Sprintf("Value %s was not passed in expected format %s", json, arrType.String()), "should error when invalid JSON")
 	assert.Equal(t, reflect.Value{}, val, "should return an empty value when error found")
@@ -660,6 +662,12 @@ func TestTypeIsValid(t *testing.T) {
 	// Should return error for bad slice
 	assert.EqualError(t, typeIsValid(badSliceType, []reflect.Type{}), fmt.Sprintf(basicErr, badType.String(), listBasicTypes()), "should have returned error for invalid slice type")
 
+	// Should return error for bad map item
+	assert.EqualError(t, typeIsValid(badMapItemType, []reflect.Type{}), fmt.Sprintf(basicErr, badType.String(), listBasicTypes()), "should have returned error for invalid slice type")
+
+	// Should return error for bad map key
+	assert.EqualError(t, typeIsValid(badMapKeyType, []reflect.Type{}), "Map key type complex64 is not valid. Expected string", "should have returned error for invalid slice type")
+
 	// Should accept basic types
 	assert.Nil(t, typeIsValid(boolRefType, []reflect.Type{}), "should not return an error for a bool type")
 	assert.Nil(t, typeIsValid(stringRefType, []reflect.Type{}), "should not return an error for a string type")
@@ -759,7 +767,7 @@ func TestTypeIsValid(t *testing.T) {
 
 	assert.Equal(t, fmt.Errorf(basicErr, "complex128", listBasicTypes()), err, "should throw error when 0 length array passed")
 
-	// 	// Should return nil for multidimensional slices made of each of the basic types
+	// Should return nil for multidimensional slices made of each of the basic types
 	assert.Nil(t, typeIsValid(reflect.TypeOf([][]string{}), []reflect.Type{}), "should not return an error for a multidimensional string slice type")
 	assert.Nil(t, typeIsValid(reflect.TypeOf([][]bool{}), []reflect.Type{}), "should not return an error for a multidimensional bool slice type")
 	assert.Nil(t, typeIsValid(reflect.TypeOf([][]int{}), []reflect.Type{}), "should not return an error for a multidimensional int slice type")
@@ -792,19 +800,49 @@ func TestTypeIsValid(t *testing.T) {
 	// Should allow slice of valid struct
 	assert.Nil(t, typeIsValid(reflect.TypeOf([]GoodStruct{}), []reflect.Type{}), "should not return an error for a slice of valid struct")
 
+	// Should allow maps with value of basic types
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]string{}), []reflect.Type{}), "should not return an error for a map string item type")
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]bool{}), []reflect.Type{}), "should not return an error for a map bool item type")
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]int{}), []reflect.Type{}), "should not return an error for a map int item type")
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]int8{}), []reflect.Type{}), "should not return an error for a map int8 item type")
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]int16{}), []reflect.Type{}), "should not return an error for a map int16 item type")
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]int32{}), []reflect.Type{}), "should not return an error for a map int32 item type")
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]int64{}), []reflect.Type{}), "should not return an error for a map int64 item type")
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]uint{}), []reflect.Type{}), "should not return an error for a map uint item type")
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]uint8{}), []reflect.Type{}), "should not return an error for a map uint8 item type")
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]uint16{}), []reflect.Type{}), "should not return an error for a map uint16 item type")
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]uint32{}), []reflect.Type{}), "should not return an error for a map uint32 item type")
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]uint64{}), []reflect.Type{}), "should not return an error for a map uint64 item type")
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]float32{}), []reflect.Type{}), "should not return an error for a map float32 item type")
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]float64{}), []reflect.Type{}), "should not return an error for a map float64 item type")
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]byte{}), []reflect.Type{}), "should not return an error for a map byte item type")
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]rune{}), []reflect.Type{}), "should not return an error for a map rune item type")
+
+	// Should allow maps of maps
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]map[string]string{}), []reflect.Type{}), "should not return an error for a map of map")
+
+	// Should allow maps of structs
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string]GoodStruct{}), []reflect.Type{}), "should not return an error for a map with struct item type")
+
+	// Should allow maps of arrays
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string][1]string{}), []reflect.Type{}), "should not return an error for a map with string array item type")
+
+	// Should allow maps of slices
+	assert.Nil(t, typeIsValid(reflect.TypeOf(map[string][]string{}), []reflect.Type{}), "should not return an error for a map with string slice item type")
+
 	// Should allow struct with property of struct
 	type GoodStruct2 struct {
 		Prop1 GoodStruct
 	}
 
-	assert.Nil(t, structOfValidType(reflect.TypeOf(GoodStruct2{})), "should not return an error for a valid struct with struct property")
+	assert.Nil(t, typeIsValid(reflect.TypeOf(GoodStruct2{}), []reflect.Type{}), "should not return an error for a valid struct with struct property")
 
 	// Should allow struct with pointer property
 	type GoodStruct3 struct {
 		Prop1 *GoodStruct
 	}
 
-	assert.Nil(t, structOfValidType(reflect.TypeOf(GoodStruct3{})), "should not return an error for a valid struct with struct property")
+	assert.Nil(t, typeIsValid(reflect.TypeOf(GoodStruct3{}), []reflect.Type{}), "should not return an error for a valid struct with struct ptr property")
 
 	// should return error for array of invalid struct
 	assert.EqualError(t, typeIsValid(reflect.TypeOf([]BadStruct{}), []reflect.Type{}), fmt.Sprintf(basicErr, badType.String(), listBasicTypes()), "should return an error for array of invalid struct")
@@ -920,7 +958,7 @@ func TestNewContractFunctionFromReflect(t *testing.T) {
 	testContractFunctionUsingReturnsString(t, mc, cf)
 }
 
-func TestCreateArrayOrSlice(t *testing.T) {
+func TestCreateArraySliceMapOrStruct(t *testing.T) {
 	var val reflect.Value
 	var err error
 
@@ -935,94 +973,124 @@ func TestCreateArrayOrSlice(t *testing.T) {
 	arrayGoodStructType := reflect.TypeOf([1]GoodStruct{})
 
 	// should error when passed data is not json
-	testCreateArraySliceOrStructErrors(t, "bad JSON", arrType)
+	testCreateArraySliceMapOrStructErrors(t, "bad JSON", arrType)
 
 	// should error when passed data is json but not valid for the unmarshalling
-	testCreateArraySliceOrStructErrors(t, "{\"some\": \"object\"}", arrType)
+	testCreateArraySliceMapOrStructErrors(t, "{\"some\": \"object\"}", arrType)
 
 	// Should error when array passed but it is too deep
-	testCreateArraySliceOrStructErrors(t, "[[\"a\"],[\"b\"]]", arrType)
+	testCreateArraySliceMapOrStructErrors(t, "[[\"a\"],[\"b\"]]", arrType)
 
 	// Should error when array passed but it is too shallow
-	testCreateArraySliceOrStructErrors(t, "[\"a\",\"b\"]", multiDArrType)
+	testCreateArraySliceMapOrStructErrors(t, "[\"a\",\"b\"]", multiDArrType)
 
 	// Should error when slice passed but it is too deep
-	testCreateArraySliceOrStructErrors(t, "[[\"a\"],[\"b\"]]", sliceType)
+	testCreateArraySliceMapOrStructErrors(t, "[[\"a\"],[\"b\"]]", sliceType)
 
 	// Should error when slice passed but it is too deep
-	testCreateArraySliceOrStructErrors(t, "[\"a\",\"b\"]", multiDSliceType)
+	testCreateArraySliceMapOrStructErrors(t, "[\"a\",\"b\"]", multiDSliceType)
 
 	// Should return error when array passed but contains data of the wrong type
-	testCreateArraySliceOrStructErrors(t, "[\"a\", 1]", arrType)
+	testCreateArraySliceMapOrStructErrors(t, "[\"a\", 1]", arrType)
 
 	// Should return error when slice passed but contains data of the wrong type
-	testCreateArraySliceOrStructErrors(t, "[\"a\", 1]", sliceType)
+	testCreateArraySliceMapOrStructErrors(t, "[\"a\", 1]", sliceType)
 
 	// Should return error when type wrong for array of slice
-	testCreateArraySliceOrStructErrors(t, "[[\"a\"],[1]]", arrOfSliceType)
+	testCreateArraySliceMapOrStructErrors(t, "[[\"a\"],[1]]", arrOfSliceType)
 
 	// Should return error when type wrong for array of slice
-	testCreateArraySliceOrStructErrors(t, "[[\"a\", 1]]", sliceOfArrType)
+	testCreateArraySliceMapOrStructErrors(t, "[[\"a\", 1]]", sliceOfArrType)
 
 	// Should return error when doesn't match struct type
-	testCreateArraySliceOrStructErrors(t, "{\"Prop1\": 1}", goodStructType)
+	testCreateArraySliceMapOrStructErrors(t, "{\"Prop1\": 1}", goodStructType)
 
 	// Should return error when doesn't match sub struct type
-	testCreateArraySliceOrStructErrors(t, "{\"StructProp\": {\"Prop1\": 1}}", anotherGoodStructType)
+	testCreateArraySliceMapOrStructErrors(t, "{\"StructProp\": {\"Prop1\": 1}}", anotherGoodStructType)
 
 	// Should return error when doesn't match struct type in array
-	testCreateArraySliceOrStructErrors(t, "[{\"Prop1\": 1}]", arrayGoodStructType)
+	testCreateArraySliceMapOrStructErrors(t, "[{\"Prop1\": 1}]", arrayGoodStructType)
 
 	// Should return reflect value for array
-	val, err = createArraySliceOrStruct("[\"a\",\"b\"]", arrType)
+	val, err = createArraySliceMapOrStruct("[\"a\",\"b\"]", arrType)
 
 	assert.Nil(t, err, "should have nil error for valid array passed")
 	assert.Equal(t, [2]string{"a", "b"}, val.Interface().([2]string), "should have returned value of array with filled in data")
 
 	// Should return reflect value for md array
-	val, err = createArraySliceOrStruct("[[\"a\"],[\"b\"]]", multiDArrType)
+	val, err = createArraySliceMapOrStruct("[[\"a\"],[\"b\"]]", multiDArrType)
 
 	assert.Nil(t, err, "should have nil error for valid array passed")
-	assert.Equal(t, [2][1]string{{"a"}, {"b"}}, val.Interface().([2][1]string), "should have returned value of multi dimensional array with filled in data")
+	assert.Equal(t, [2][1]string{{"a"}, {"b"}}, val.Interface().([2][1]string), "should have returned value of multidimensional array with filled in data")
 
 	// Should return reflect value for slice
-	val, err = createArraySliceOrStruct("[\"a\",\"b\"]", sliceType)
+	val, err = createArraySliceMapOrStruct("[\"a\",\"b\"]", sliceType)
 
 	assert.Nil(t, err, "should have nil error for valid slice passed")
 	assert.Equal(t, []string{"a", "b"}, val.Interface().([]string), "should have returned value of slice with filled in data")
 
 	// Should return reflect value for md slice
-	val, err = createArraySliceOrStruct("[[\"a\"],[\"b\"]]", multiDSliceType)
+	val, err = createArraySliceMapOrStruct("[[\"a\"],[\"b\"]]", multiDSliceType)
 
 	assert.Nil(t, err, "should have nil error for valid slice passed")
-	assert.Equal(t, [][]string{{"a"}, {"b"}}, val.Interface().([][]string), "should have returned value of multi dimensional slice with filled in data")
+	assert.Equal(t, [][]string{{"a"}, {"b"}}, val.Interface().([][]string), "should have returned value of multidimensional slice with filled in data")
 
 	// Should return reflect value for an array of slices
-	val, err = createArraySliceOrStruct("[[\"a\"],[\"b\"]]", arrOfSliceType)
+	val, err = createArraySliceMapOrStruct("[[\"a\"],[\"b\"]]", arrOfSliceType)
 
 	assert.Nil(t, err, "should have nil error for valid slice passed")
 	assert.Equal(t, [2][]string{{"a"}, {"b"}}, val.Interface().([2][]string), "should have returned value of array of slices with filled in data")
 
 	// Should return reflect value for a slice of arrays
-	val, err = createArraySliceOrStruct("[[\"a\", \"b\"]]", sliceOfArrType)
+	val, err = createArraySliceMapOrStruct("[[\"a\", \"b\"]]", sliceOfArrType)
 
 	assert.Nil(t, err, "should have nil error for valid slice passed")
 	assert.Equal(t, [][2]string{{"a", "b"}}, val.Interface().([][2]string), "should have returned value of slice of arrays with filled in data")
 
+	// Should return reflect value for map
+	val, err = createArraySliceMapOrStruct("{\"bob\": 1}", reflect.TypeOf(map[string]int{}))
+
+	assert.Nil(t, err, "should have nil error for valid map passed")
+	assert.Equal(t, map[string]int{
+		"bob": 1,
+	}, val.Interface().(map[string]int), "should have returned value of array with filled in data")
+
+	// Should return reflect value for map of struct
+	val, err = createArraySliceMapOrStruct("{\"bob\": {\"Prop1\": \"hello\",\"prop2\": 1}}", reflect.TypeOf(map[string]GoodStruct{}))
+
+	assert.Nil(t, err, "should have nil error for valid map passed")
+	assert.Equal(t, map[string]GoodStruct{
+		"bob": GoodStruct{
+			"hello",
+			1,
+			"",
+		},
+	}, val.Interface().(map[string]GoodStruct), "should have returned value of array with filled in data")
+
+	// Should return reflect value for map of map
+	val, err = createArraySliceMapOrStruct("{\"bob\": {\"fred\": 1}}", reflect.TypeOf(map[string]map[string]int{}))
+
+	assert.Nil(t, err, "should have nil error for valid map passed")
+	assert.Equal(t, map[string]map[string]int{
+		"bob": map[string]int{
+			"fred": 1,
+		},
+	}, val.Interface().(map[string]map[string]int), "should have returned value of array with filled in data")
+
 	// should return reflect value for a struct
-	val, err = createArraySliceOrStruct("{\"Prop1\": \"Hello world\", \"prop2\": 1}", goodStructType)
+	val, err = createArraySliceMapOrStruct("{\"Prop1\": \"Hello world\", \"prop2\": 1}", goodStructType)
 
 	assert.Nil(t, err, "should have nil error for valid slice passed")
 	assert.Equal(t, GoodStruct{"Hello world", 1, ""}, val.Interface().(GoodStruct), "should have returned value of slice of arrays with filled in data")
 
 	// should return reflect value for a struct array
-	val, err = createArraySliceOrStruct("[{\"Prop1\": \"Hello world\", \"prop2\": 1}]", arrayGoodStructType)
+	val, err = createArraySliceMapOrStruct("[{\"Prop1\": \"Hello world\", \"prop2\": 1}]", arrayGoodStructType)
 
 	assert.Nil(t, err, "should have nil error for valid slice passed")
 	assert.Equal(t, [1]GoodStruct{GoodStruct{"Hello world", 1, ""}}, val.Interface().([1]GoodStruct), "should have returned value of slice of arrays with filled in data")
 
 	// should return reflect value for a struct containing a struct
-	val, err = createArraySliceOrStruct("{\"StringProp\": \"Hello World\", \"StructProp\": {\"Prop1\": \"Hello world\", \"prop2\": 1}}", anotherGoodStructType)
+	val, err = createArraySliceMapOrStruct("{\"StringProp\": \"Hello World\", \"StructProp\": {\"Prop1\": \"Hello world\", \"prop2\": 1}}", anotherGoodStructType)
 
 	assert.Nil(t, err, "should have nil error for valid slice passed")
 	assert.Equal(t, AnotherGoodStruct{"Hello World", GoodStruct{"Hello world", 1, ""}}, val.Interface().(AnotherGoodStruct), "should have returned value of slice of arrays with filled in data")
@@ -1223,6 +1291,16 @@ func TestGetArgs(t *testing.T) {
 	assert.EqualError(t, err, "Value [[1],[2],[3],[\"a\"]] was not passed in expected format [4][1]int", "should have returned error when array conversion returns error")
 	assert.Nil(t, values, "should not have returned value list on error")
 
+	// should handle map of basic type
+	setContractFunctionParams(&cf, nil, []reflect.Type{
+		reflect.TypeOf(map[string]int{}),
+	})
+
+	values = callGetArgsAndBasicTest(t, cf, ctx, nil, nil, []string{"{\"bob\": 1}"})
+	testReflectValueEqualSlice(t, values, []map[string]int{map[string]int{
+		"bob": 1,
+	}})
+
 	// should handle struct
 	setContractFunctionParams(&cf, nil, []reflect.Type{
 		reflect.TypeOf(GoodStruct{}),
@@ -1365,7 +1443,6 @@ func TestGetArgs(t *testing.T) {
 	components = ComponentMetadata{}
 	components.Schemas = make(map[string]ObjectMetadata)
 	customMetadata := ObjectMetadata{
-		ID:                   "GoodStruct",
 		Properties:           make(map[string]spec.Schema),
 		Required:             []string{"Prop1", "prop2"},
 		AdditionalProperties: false,
@@ -1493,6 +1570,21 @@ func TestHandleContractFunctionResponse(t *testing.T) {
 	intMdArray := [4][]int{{1}, {2, 3}, {4, 5, 6}, {7}}
 	response = []reflect.Value{reflect.ValueOf(intMdArray)}
 	testHandleResponse(t, reflect.TypeOf(intMdArray), false, response, "[[1],[2,3],[4,5,6],[7]]", intMdArray, nil)
+
+	// Should return map responses as JSON strings
+	stringIntMap := map[string]int{
+		"bob":  1,
+		"fred": 10,
+	}
+	response = []reflect.Value{reflect.ValueOf(stringIntMap)}
+	testHandleResponse(t, reflect.TypeOf(stringIntMap), false, response, "{\"bob\":1,\"fred\":10}", stringIntMap, nil)
+	stringMapIntMap := map[string]map[string]int{
+		"bob": map[string]int{
+			"fred": 10,
+		},
+	}
+	response = []reflect.Value{reflect.ValueOf(stringMapIntMap)}
+	testHandleResponse(t, reflect.TypeOf(stringMapIntMap), false, response, "{\"bob\":{\"fred\":10}}", stringMapIntMap, nil)
 
 	// Should return a json object for a struct
 	myStruct := GoodStruct{"Hello World", 100, "Goodbye"}

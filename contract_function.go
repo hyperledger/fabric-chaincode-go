@@ -90,11 +90,16 @@ func typeIsValid(t reflect.Type, additionalTypes []reflect.Type) error {
 
 	if t.Kind() == reflect.Array {
 		array := reflect.New(t).Elem()
-
 		return arrayOfValidType(array)
 	} else if t.Kind() == reflect.Slice {
 		slice := reflect.MakeSlice(t, 1, 1)
-		return typeIsValid(slice.Index(0).Type(), []reflect.Type{})
+		return typeIsValid(slice.Index(0).Type(), []reflect.Type{}) // additional types only used to allow error return so don't want arrays of errors
+	} else if t.Kind() == reflect.Map {
+		if t.Key().Kind() != reflect.String {
+			return fmt.Errorf("Map key type %s is not valid. Expected string", t.Key().String())
+		}
+
+		return typeIsValid(t.Elem(), []reflect.Type{})
 	} else if (t.Kind() == reflect.Struct || (t.Kind() == reflect.Ptr && t.Elem().Kind() == reflect.Struct)) && !typeInSlice(t, additionalTypes) {
 		return structOfValidType(t)
 	} else if _, ok := basicTypes[t.Kind()]; (!ok || (t.Kind() == reflect.Interface && t.String() != "interface {}")) && !typeInSlice(t, additionalTypes) {
@@ -238,7 +243,7 @@ func newContractFunctionFromReflect(typeMethod reflect.Method, valueMethod refle
 	return newContractFunction(valueMethod, paramDetails, returnDetails)
 }
 
-func createArraySliceOrStruct(param string, objType reflect.Type) (reflect.Value, error) {
+func createArraySliceMapOrStruct(param string, objType reflect.Type) (reflect.Value, error) {
 	obj := reflect.New(objType)
 
 	err := json.Unmarshal([]byte(param), obj.Interface())
@@ -280,8 +285,8 @@ func getArgs(fn contractFunction, ctx reflect.Value, supplementaryMetadata *Tran
 		var converted reflect.Value
 		toValidate := make(map[string]interface{})
 		var err error
-		if fieldType.Kind() == reflect.Array || fieldType.Kind() == reflect.Slice {
-			converted, err = createArraySliceOrStruct(params[i], fieldType)
+		if fieldType.Kind() == reflect.Array || fieldType.Kind() == reflect.Slice || fieldType.Kind() == reflect.Map {
+			converted, err = createArraySliceMapOrStruct(params[i], fieldType)
 
 			if err != nil {
 				return nil, err
@@ -290,7 +295,7 @@ func getArgs(fn contractFunction, ctx reflect.Value, supplementaryMetadata *Tran
 			toValidate["prop"] = converted.Interface()
 
 		} else if fieldType.Kind() == reflect.Struct || (fieldType.Kind() == reflect.Ptr && fieldType.Elem().Kind() == reflect.Struct) {
-			converted, err = createArraySliceOrStruct(params[i], fieldType)
+			converted, err = createArraySliceMapOrStruct(params[i], fieldType)
 
 			if err != nil {
 				return nil, err
@@ -375,7 +380,6 @@ func handleContractFunctionResponse(response []reflect.Value, function contractF
 				if isMarshallingType(function.returns.success) || function.returns.success.Kind() == reflect.Interface && isMarshallingType(successResponse.Type()) {
 					bytes, _ := json.Marshal(successResponse.Interface())
 					successString = string(bytes)
-					logger.Info(successString)
 				} else {
 					successString = fmt.Sprint(successResponse.Interface())
 				}
@@ -399,5 +403,5 @@ func isNillableType(kind reflect.Kind) bool {
 }
 
 func isMarshallingType(typ reflect.Type) bool {
-	return typ.Kind() == reflect.Array || typ.Kind() == reflect.Slice || typ.Kind() == reflect.Struct || (typ.Kind() == reflect.Ptr && typ.Elem().Kind() == reflect.Struct)
+	return typ.Kind() == reflect.Array || typ.Kind() == reflect.Slice || typ.Kind() == reflect.Map || typ.Kind() == reflect.Struct || (typ.Kind() == reflect.Ptr && typ.Elem().Kind() == reflect.Struct)
 }

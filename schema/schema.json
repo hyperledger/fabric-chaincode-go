@@ -120,13 +120,9 @@
             "type": "object",
             "description": "A complex type used in a domain",
             "required": [
-                "$id",
                 "properties"
             ],
             "properties": {
-                "$id": {
-                    "type": "string"
-                },
                 "properties": {
                     "^.*$": {
                         "$ref": "#/definitions/schema"

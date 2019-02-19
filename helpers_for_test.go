@@ -75,7 +75,6 @@ var goodStructPropertiesMap = map[string]spec.Schema{
 }
 
 var goodStructMetadata = ObjectMetadata{
-	ID:                   "GoodStruct",
 	Properties:           goodStructPropertiesMap,
 	Required:             []string{"Prop1", "prop2"},
 	AdditionalProperties: false,

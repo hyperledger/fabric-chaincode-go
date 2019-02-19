@@ -478,6 +478,16 @@ func buildSliceSchema(slice reflect.Value, components *ComponentMetadata) (*spec
 	return spec.ArrayProperty(lowerSchema), nil
 }
 
+func buildMapSchema(rmap reflect.Value, components *ComponentMetadata) (*spec.Schema, error) {
+	lowerSchema, err := getSchema(rmap.Type().Elem(), components)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return spec.MapProperty(lowerSchema), nil
+}
+
 func addComponentIfNotExists(obj reflect.Type, components *ComponentMetadata) error {
 	if obj.Kind() == reflect.Ptr {
 		obj = obj.Elem()
@@ -488,7 +498,6 @@ func addComponentIfNotExists(obj reflect.Type, components *ComponentMetadata) er
 	}
 
 	schema := ObjectMetadata{}
-	schema.ID = obj.Name()
 	schema.Required = []string{}
 	schema.Properties = make(map[string]spec.Schema)
 	schema.AdditionalProperties = false
@@ -545,6 +554,8 @@ func getSchema(field reflect.Type, components *ComponentMetadata) (*spec.Schema,
 			schema, err = buildArraySchema(reflect.New(field).Elem(), components)
 		} else if field.Kind() == reflect.Slice {
 			schema, err = buildSliceSchema(reflect.MakeSlice(field, 1, 1), components)
+		} else if field.Kind() == reflect.Map {
+			schema, err = buildMapSchema(reflect.MakeMap(field), components)
 		} else if field.Kind() == reflect.Struct || (field.Kind() == reflect.Ptr && field.Elem().Kind() == reflect.Struct) {
 			schema, err = buildStructSchema(field, components)
 		} else {
