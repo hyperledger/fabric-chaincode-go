@@ -23,7 +23,7 @@ All code samples below assume two things:
    to your chaincode.
 2. You have added the following import statement to your chaincode.
     ```
-    import "github.com/hyperledger/fabric-chaincode-go/shim/ext/cid"
+    import "github.com/hyperledger/fabric-chaincode-go/shim/pkg/cid"
     ```
 #### Getting the client's ID
 
