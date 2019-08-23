@@ -8,7 +8,7 @@ import (
 	"encoding/base64"
 	"testing"
 
-	"github.com/hyperledger/fabric-chaincode-go/shim/ext/attrmgr"
+	"github.com/hyperledger/fabric-chaincode-go/pkg/attrmgr"
 	"github.com/stretchr/testify/assert"
 )
 

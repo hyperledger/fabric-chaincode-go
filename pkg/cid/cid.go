@@ -13,7 +13,7 @@ import (
 	"fmt"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-chaincode-go/shim/ext/attrmgr"
+	"github.com/hyperledger/fabric-chaincode-go/pkg/attrmgr"
 	"github.com/hyperledger/fabric-protos-go/msp"
 )
 
