@@ -6,3 +6,4 @@
 .#*
 .*.sw*
 /build
+.vscode
