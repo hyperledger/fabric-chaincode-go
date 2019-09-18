@@ -17,12 +17,14 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
+// Config ...
 type Config struct {
 	ChaincodeName string
 	TLS           *tls.Config
 	KaOpts        keepalive.ClientParameters
 }
 
+// LoadConfig ...
 func LoadConfig() (Config, error) {
 	tlsEnabled, err := strconv.ParseBool(os.Getenv("CORE_PEER_TLS_ENABLED"))
 	if err != nil {

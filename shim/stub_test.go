@@ -102,7 +102,7 @@ func TestNewChaincodeStub(t *testing.T) {
 		assert.NotNil(t, stub)
 
 		assert.Equal(t, &Handler{}, stub.handler, "expected empty handler")
-		assert.Equal(t, "channel-id", stub.ChannelId)
+		assert.Equal(t, "channel-id", stub.ChannelID)
 		assert.Equal(t, "transaction-id", stub.TxID)
 		assert.Equal(t, expectedArgs, stub.args)
 		assert.Equal(t, expectedDecorations, stub.decorations)
@@ -147,7 +147,7 @@ func TestChaincodeStubAccessors(t *testing.T) {
 	stub := &ChaincodeStub{TxID: "transaction-id"}
 	assert.Equal(t, "transaction-id", stub.GetTxID())
 
-	stub = &ChaincodeStub{ChannelId: "channel-id"}
+	stub = &ChaincodeStub{ChannelID: "channel-id"}
 	assert.Equal(t, "channel-id", stub.GetChannelID())
 
 	stub = &ChaincodeStub{decorations: map[string][]byte{"key": []byte("value")}}
@@ -562,7 +562,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				state:            ready,
 			}
 			stub := &ChaincodeStub{
-				ChannelId:                  "channel",
+				ChannelID:                  "channel",
 				TxID:                       "txid",
 				handler:                    handler,
 				validationParameterMetakey: "mkey",
