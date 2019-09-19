@@ -7,8 +7,8 @@ trigger:
   batch: false
   branches:
     include:
-    - master
-    - release-*
+      - master
+      - release-*
 
 variables:
   branch: $[ coalesce(variables['system.PullRequest.TargetBranch'], variables['build.SourceBranchName']) ]
@@ -19,10 +19,18 @@ container:
   image: golang:1.12.9-buster
 
 steps:
-- checkout: self
-  clean: true
-  fetchDepth: 1
+  - checkout: self
+    clean: true
+    fetchDepth: 1
 
-- script: |
-    set -eu -o pipefail
-    go test -race ./...
+  - script: go get -u golang.org/x/lint/golint
+    displayName: Install Go Linter
+
+  - script: golint -set_exit_status ./...
+    displayName: Lint Code
+
+  - script: go vet ./...
+    displayName: Vet Code
+
+  - script: go test -race ./...
+    displayName: Run Tests
