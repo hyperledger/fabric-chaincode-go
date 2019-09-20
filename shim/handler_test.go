@@ -13,9 +13,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-//go:generate counterfeiter -o internal/mock/peer_chaincode_stream.go --fake-name PeerChaincodeStream . chaincodeStream
+//go:generate counterfeiter -o internal/mock/peer_chaincode_stream.go --fake-name PeerChaincodeStream . peerChaincodeStream
 
-type chaincodeStream interface{ PeerChaincodeStream }
+type peerChaincodeStream interface{ PeerChaincodeStream }
+
+//go:generate counterfeiter -o internal/mock/client_stream.go --fake-name ClientStream . clientStream
+
+type clientStream interface{ ClientStream }
 
 type mockChaincode struct {
 	errMsg       string

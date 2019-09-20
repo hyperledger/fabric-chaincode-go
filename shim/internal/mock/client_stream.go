@@ -7,7 +7,17 @@ import (
 	"github.com/hyperledger/fabric-protos-go/peer"
 )
 
-type PeerChaincodeStream struct {
+type ClientStream struct {
+	CloseSendStub        func() error
+	closeSendMutex       sync.RWMutex
+	closeSendArgsForCall []struct {
+	}
+	closeSendReturns struct {
+		result1 error
+	}
+	closeSendReturnsOnCall map[int]struct {
+		result1 error
+	}
 	RecvStub        func() (*peer.ChaincodeMessage, error)
 	recvMutex       sync.RWMutex
 	recvArgsForCall []struct {
@@ -35,7 +45,59 @@ type PeerChaincodeStream struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *PeerChaincodeStream) Recv() (*peer.ChaincodeMessage, error) {
+func (fake *ClientStream) CloseSend() error {
+	fake.closeSendMutex.Lock()
+	ret, specificReturn := fake.closeSendReturnsOnCall[len(fake.closeSendArgsForCall)]
+	fake.closeSendArgsForCall = append(fake.closeSendArgsForCall, struct {
+	}{})
+	fake.recordInvocation("CloseSend", []interface{}{})
+	fake.closeSendMutex.Unlock()
+	if fake.CloseSendStub != nil {
+		return fake.CloseSendStub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.closeSendReturns
+	return fakeReturns.result1
+}
+
+func (fake *ClientStream) CloseSendCallCount() int {
+	fake.closeSendMutex.RLock()
+	defer fake.closeSendMutex.RUnlock()
+	return len(fake.closeSendArgsForCall)
+}
+
+func (fake *ClientStream) CloseSendCalls(stub func() error) {
+	fake.closeSendMutex.Lock()
+	defer fake.closeSendMutex.Unlock()
+	fake.CloseSendStub = stub
+}
+
+func (fake *ClientStream) CloseSendReturns(result1 error) {
+	fake.closeSendMutex.Lock()
+	defer fake.closeSendMutex.Unlock()
+	fake.CloseSendStub = nil
+	fake.closeSendReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *ClientStream) CloseSendReturnsOnCall(i int, result1 error) {
+	fake.closeSendMutex.Lock()
+	defer fake.closeSendMutex.Unlock()
+	fake.CloseSendStub = nil
+	if fake.closeSendReturnsOnCall == nil {
+		fake.closeSendReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.closeSendReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *ClientStream) Recv() (*peer.ChaincodeMessage, error) {
 	fake.recvMutex.Lock()
 	ret, specificReturn := fake.recvReturnsOnCall[len(fake.recvArgsForCall)]
 	fake.recvArgsForCall = append(fake.recvArgsForCall, struct {
@@ -52,19 +114,19 @@ func (fake *PeerChaincodeStream) Recv() (*peer.ChaincodeMessage, error) {
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *PeerChaincodeStream) RecvCallCount() int {
+func (fake *ClientStream) RecvCallCount() int {
 	fake.recvMutex.RLock()
 	defer fake.recvMutex.RUnlock()
 	return len(fake.recvArgsForCall)
 }
 
-func (fake *PeerChaincodeStream) RecvCalls(stub func() (*peer.ChaincodeMessage, error)) {
+func (fake *ClientStream) RecvCalls(stub func() (*peer.ChaincodeMessage, error)) {
 	fake.recvMutex.Lock()
 	defer fake.recvMutex.Unlock()
 	fake.RecvStub = stub
 }
 
-func (fake *PeerChaincodeStream) RecvReturns(result1 *peer.ChaincodeMessage, result2 error) {
+func (fake *ClientStream) RecvReturns(result1 *peer.ChaincodeMessage, result2 error) {
 	fake.recvMutex.Lock()
 	defer fake.recvMutex.Unlock()
 	fake.RecvStub = nil
@@ -74,7 +136,7 @@ func (fake *PeerChaincodeStream) RecvReturns(result1 *peer.ChaincodeMessage, res
 	}{result1, result2}
 }
 
-func (fake *PeerChaincodeStream) RecvReturnsOnCall(i int, result1 *peer.ChaincodeMessage, result2 error) {
+func (fake *ClientStream) RecvReturnsOnCall(i int, result1 *peer.ChaincodeMessage, result2 error) {
 	fake.recvMutex.Lock()
 	defer fake.recvMutex.Unlock()
 	fake.RecvStub = nil
@@ -90,7 +152,7 @@ func (fake *PeerChaincodeStream) RecvReturnsOnCall(i int, result1 *peer.Chaincod
 	}{result1, result2}
 }
 
-func (fake *PeerChaincodeStream) Send(arg1 *peer.ChaincodeMessage) error {
+func (fake *ClientStream) Send(arg1 *peer.ChaincodeMessage) error {
 	fake.sendMutex.Lock()
 	ret, specificReturn := fake.sendReturnsOnCall[len(fake.sendArgsForCall)]
 	fake.sendArgsForCall = append(fake.sendArgsForCall, struct {
@@ -108,26 +170,26 @@ func (fake *PeerChaincodeStream) Send(arg1 *peer.ChaincodeMessage) error {
 	return fakeReturns.result1
 }
 
-func (fake *PeerChaincodeStream) SendCallCount() int {
+func (fake *ClientStream) SendCallCount() int {
 	fake.sendMutex.RLock()
 	defer fake.sendMutex.RUnlock()
 	return len(fake.sendArgsForCall)
 }
 
-func (fake *PeerChaincodeStream) SendCalls(stub func(*peer.ChaincodeMessage) error) {
+func (fake *ClientStream) SendCalls(stub func(*peer.ChaincodeMessage) error) {
 	fake.sendMutex.Lock()
 	defer fake.sendMutex.Unlock()
 	fake.SendStub = stub
 }
 
-func (fake *PeerChaincodeStream) SendArgsForCall(i int) *peer.ChaincodeMessage {
+func (fake *ClientStream) SendArgsForCall(i int) *peer.ChaincodeMessage {
 	fake.sendMutex.RLock()
 	defer fake.sendMutex.RUnlock()
 	argsForCall := fake.sendArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *PeerChaincodeStream) SendReturns(result1 error) {
+func (fake *ClientStream) SendReturns(result1 error) {
 	fake.sendMutex.Lock()
 	defer fake.sendMutex.Unlock()
 	fake.SendStub = nil
@@ -136,7 +198,7 @@ func (fake *PeerChaincodeStream) SendReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *PeerChaincodeStream) SendReturnsOnCall(i int, result1 error) {
+func (fake *ClientStream) SendReturnsOnCall(i int, result1 error) {
 	fake.sendMutex.Lock()
 	defer fake.sendMutex.Unlock()
 	fake.SendStub = nil
@@ -150,9 +212,11 @@ func (fake *PeerChaincodeStream) SendReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *PeerChaincodeStream) Invocations() map[string][][]interface{} {
+func (fake *ClientStream) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
+	fake.closeSendMutex.RLock()
+	defer fake.closeSendMutex.RUnlock()
 	fake.recvMutex.RLock()
 	defer fake.recvMutex.RUnlock()
 	fake.sendMutex.RLock()
@@ -164,7 +228,7 @@ func (fake *PeerChaincodeStream) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *PeerChaincodeStream) recordInvocation(key string, args []interface{}) {
+func (fake *ClientStream) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
