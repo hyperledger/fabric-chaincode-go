@@ -18,12 +18,13 @@ import (
 func TestStart(t *testing.T) {
 
 	var tests = []struct {
-		name         string
-		envVars      map[string]string
-		peerAddress  string
-		streamGetter func(name string) (ClientStream, error)
-		cc           Chaincode
-		expectedErr  string
+		name             string
+		envVars          map[string]string
+		peerAddress      string
+		chaincodeAddress string
+		streamGetter     func(name string) (ClientStream, error)
+		cc               Chaincode
+		expectedErr      string
 	}{
 		{
 			name:        "Missing Chaincode ID",
@@ -128,7 +129,56 @@ func TestStart(t *testing.T) {
 			streamGetter = test.streamGetter
 			err := Start(test.cc)
 			assert.EqualError(t, err, test.expectedErr)
+		})
+	}
 
+}
+
+func TestChaincodeServerStart(t *testing.T) {
+
+	var tests = []struct {
+		name         string
+		ccsrv        ChaincodeServer
+		streamGetter func(name string) (ClientStream, error)
+		expectedErr  string
+		containsErr  string
+	}{
+		{
+			name:        "Missing Chaincode ID",
+			ccsrv:       ChaincodeServer{},
+			expectedErr: "name must be specified",
+		},
+		{
+			name:        "Missing Peer Address",
+			ccsrv:       ChaincodeServer{Name: "cc"},
+			expectedErr: "address must be specified",
+		},
+		{
+			name:        "Missing Peer Address and Chaincode Address",
+			ccsrv:       ChaincodeServer{Name: "cc", Address: "127.0.0.1:12345"},
+			expectedErr: "chaincode must be specified",
+		},
+		{
+			name:        "Badly formed chaincode server address",
+			ccsrv:       ChaincodeServer{Name: "cc", Address: "127.0.0.1", CC: &mockChaincode{}},
+			expectedErr: "listen tcp: address 127.0.0.1: missing port in address",
+		},
+		{
+			name:        "Bad host in chaincode server address",
+			ccsrv:       ChaincodeServer{Name: "cc", Address: "__badhost__:12345", CC: &mockChaincode{}},
+			containsErr: "listen tcp: lookup __badhost__",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			err := test.ccsrv.Start()
+			if test.expectedErr != "" {
+				assert.EqualError(t, err, test.expectedErr)
+			} else if test.containsErr != "" {
+				assert.Contains(t, err.Error(), test.containsErr)
+			}
 		})
 	}
 

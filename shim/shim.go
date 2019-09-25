@@ -25,6 +25,7 @@ const (
 	emptyKeySubstitute    = "\x01"
 )
 
+// peer as server
 var peerAddress = flag.String("peer.address", "", "peer address")
 
 //this separates the chaincode stream interface establishment
