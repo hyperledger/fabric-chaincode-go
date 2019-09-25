@@ -9,6 +9,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/hyperledger/fabric-chaincode-go/shim/internal"
 	"github.com/hyperledger/fabric-chaincode-go/shim/internal/mock"
 	peerpb "github.com/hyperledger/fabric-protos-go/peer"
 
@@ -21,7 +22,8 @@ func TestStart(t *testing.T) {
 		name         string
 		envVars      map[string]string
 		peerAddress  string
-		streamGetter func(name string) (ClientStream, error)
+		chaincodeAddress  string
+		streamGetter func(name string, conf internal.Config) (ClientStream, error)
 		cc           Chaincode
 		expectedErr  string
 	}{
@@ -30,11 +32,38 @@ func TestStart(t *testing.T) {
 			expectedErr: "'CORE_CHAINCODE_ID_NAME' must be set",
 		},
 		{
-			name: "Missing Peer Address",
+			name: "Both Peer Address and Chaincode Address specified",
 			envVars: map[string]string{
 				"CORE_CHAINCODE_ID_NAME": "cc",
 			},
-			expectedErr: "flag 'peer.address' must be set",
+			expectedErr: "flag 'peer.address' or 'chaincode.address' must be set",
+		},
+		{
+			name: "Missing Peer Address and Chaincode Address",
+			envVars: map[string]string{
+				"CORE_CHAINCODE_ID_NAME": "cc",
+			},
+			peerAddress: "127.0.0.1:12345",
+			chaincodeAddress: "127.0.0.1:12346",
+			expectedErr: "only one of flags 'peer.address' or 'chaincode.address' must be set",
+		},
+		{
+			name: "Badly formed chaincode server address",
+			envVars: map[string]string{
+				"CORE_CHAINCODE_ID_NAME": "cc",
+				"CORE_PEER_TLS_ENABLED":  "false",
+			},
+			chaincodeAddress: "127.0.0.1",
+			expectedErr: "listen tcp: address 127.0.0.1: missing port in address",
+		},
+		{
+			name: "Bad host in chaincode server address",
+			envVars: map[string]string{
+				"CORE_CHAINCODE_ID_NAME": "cc",
+				"CORE_PEER_TLS_ENABLED":  "false",
+			},
+			chaincodeAddress: "__badhost__:12345",
+			expectedErr: "listen tcp: lookup __badhost__: no such host",
 		},
 		{
 			name: "TLS Not Set",
@@ -60,7 +89,7 @@ func TestStart(t *testing.T) {
 				"CORE_PEER_TLS_ENABLED":  "false",
 			},
 			peerAddress: "127.0.0.1:12345",
-			streamGetter: func(name string) (ClientStream, error) {
+			streamGetter: func(name string, conf internal.Config) (ClientStream, error) {
 				stream := &mock.ClientStream{}
 				return stream, nil
 			},
@@ -73,7 +102,7 @@ func TestStart(t *testing.T) {
 				"CORE_PEER_TLS_ENABLED":  "false",
 			},
 			peerAddress: "127.0.0.1:12345",
-			streamGetter: func(name string) (ClientStream, error) {
+			streamGetter: func(name string, conf internal.Config) (ClientStream, error) {
 				stream := &mock.ClientStream{}
 				stream.RecvReturns(nil, io.EOF)
 				return stream, nil
@@ -87,7 +116,7 @@ func TestStart(t *testing.T) {
 				"CORE_PEER_TLS_ENABLED":  "false",
 			},
 			peerAddress: "127.0.0.1:12345",
-			streamGetter: func(name string) (ClientStream, error) {
+			streamGetter: func(name string, conf internal.Config) (ClientStream, error) {
 				stream := &mock.ClientStream{}
 				stream.RecvReturns(nil, errors.New("recvError"))
 				return stream, nil
@@ -101,7 +130,7 @@ func TestStart(t *testing.T) {
 				"CORE_PEER_TLS_ENABLED":  "false",
 			},
 			peerAddress: "127.0.0.1:12345",
-			streamGetter: func(name string) (ClientStream, error) {
+			streamGetter: func(name string, conf internal.Config) (ClientStream, error) {
 				stream := &mock.ClientStream{}
 				stream.RecvReturnsOnCall(
 					0,
@@ -125,6 +154,7 @@ func TestStart(t *testing.T) {
 				defer os.Unsetenv(k)
 			}
 			peerAddress = &test.peerAddress
+			chaincodeAddress = &test.chaincodeAddress
 			streamGetter = test.streamGetter
 			err := Start(test.cc)
 			assert.EqualError(t, err, test.expectedErr)

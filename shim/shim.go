@@ -25,26 +25,21 @@ const (
 	emptyKeySubstitute    = "\x01"
 )
 
+// peer as server
 var peerAddress = flag.String("peer.address", "", "peer address")
+
+// chaincode as server
+var chaincodeAddress = flag.String("chaincode.address", "", "chaincode address")
 
 //this separates the chaincode stream interface establishment
 //so we can replace it with a mock peer stream
-type peerStreamGetter func(name string) (ClientStream, error)
+type peerStreamGetter func(name string, conf internal.Config) (ClientStream, error)
 
 //UTs to setup mock peer stream getter
 var streamGetter peerStreamGetter
 
 //the non-mock user CC stream establishment func
-func userChaincodeStreamGetter(name string) (ClientStream, error) {
-	if *peerAddress == "" {
-		return nil, errors.New("flag 'peer.address' must be set")
-	}
-
-	conf, err := internal.LoadConfig()
-	if err != nil {
-		return nil, err
-	}
-
+func userChaincodeStreamGetter(name string, conf internal.Config) (ClientStream, error) {
 	conn, err := internal.NewClientConn(*peerAddress, conf.TLS, conf.KaOpts)
 	if err != nil {
 		return nil, err
@@ -56,9 +51,31 @@ func userChaincodeStreamGetter(name string) (ClientStream, error) {
 // Start chaincodes
 func Start(cc Chaincode) error {
 	flag.Parse()
+
 	chaincodename := os.Getenv("CORE_CHAINCODE_ID_NAME")
 	if chaincodename == "" {
 		return errors.New("'CORE_CHAINCODE_ID_NAME' must be set")
+	}
+
+	if *peerAddress == "" && *chaincodeAddress == "" {
+		return errors.New("flag 'peer.address' or 'chaincode.address' must be set")
+	}
+
+	if *peerAddress != "" && *chaincodeAddress != "" {
+		return errors.New("only one of flags 'peer.address' or 'chaincode.address' must be set")
+	}
+
+	conf, err := internal.LoadConfig()
+	if err != nil {
+		return err
+	}
+
+	// if address is specified, start as server ...
+	if *chaincodeAddress != "" {
+		//TODO FAB-16690 - add TLS support
+		cs := &ChaincodeServer{CC: cc, Name: chaincodename, Tls: nil}
+
+		return cs.Start(*chaincodeAddress)
 	}
 
 	//mock stream not set up ... get real stream
@@ -66,7 +83,7 @@ func Start(cc Chaincode) error {
 		streamGetter = userChaincodeStreamGetter
 	}
 
-	stream, err := streamGetter(chaincodename)
+	stream, err := streamGetter(chaincodename, conf)
 	if err != nil {
 		return err
 	}
