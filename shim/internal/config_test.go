@@ -259,6 +259,99 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 			}
 		})
 	}
+
+	tlsServerConfig := &tls.Config{
+		MinVersion:             tls.VersionTLS12,
+		Certificates:           []tls.Certificate{clientCert},
+		RootCAs:                rootPool,
+		SessionTicketsDisabled: true,
+		CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+		},
+		ClientAuth: tls.RequireAndVerifyClientCert,
+	}
+
+	tlsServerNonMutualConfig := &tls.Config{
+		MinVersion:             tls.VersionTLS12,
+		Certificates:           []tls.Certificate{clientCert},
+		RootCAs:                nil,
+		SessionTicketsDisabled: true,
+		CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+		},
+		ClientAuth: tls.NoClientCert,
+	}
+
+	// additional tests to differentiate client vs server
+	var tlsTests = []struct {
+		name     string
+		issrv    bool
+		key      []byte
+		cert     []byte
+		rootCert []byte
+		expected *tls.Config
+		errMsg   string
+	}{
+		{
+			name:     "Server TLS",
+			issrv:    true,
+			key:      []byte(keyPEM),
+			cert:     []byte(certPEM),
+			rootCert: []byte(rootPEM),
+			expected: tlsServerConfig,
+		},
+		{
+			name:     "Server non-mutual TLS",
+			issrv:    true,
+			key:      []byte(keyPEM),
+			cert:     []byte(certPEM),
+			rootCert: nil,
+			expected: tlsServerNonMutualConfig,
+		},
+		{
+			name:     "Server key unspecified",
+			issrv:    true,
+			key:      nil,
+			cert:     []byte(certPEM),
+			rootCert: []byte(rootPEM),
+			errMsg:   "key not provided",
+		},
+		{
+			name:     "Server cert unspecified",
+			issrv:    true,
+			key:      []byte(keyPEM),
+			cert:     nil,
+			rootCert: []byte(rootPEM),
+			errMsg:   "cert not provided",
+		},
+		{
+			name:     "Client TLS root CA unspecified",
+			issrv:    false,
+			key:      []byte(keyPEM),
+			cert:     []byte(certPEM),
+			rootCert: nil,
+			errMsg:   "root cert not provided",
+		},
+	}
+
+	for _, test := range tlsTests {
+		t.Run(test.name, func(t *testing.T) {
+			tlsCfg, err := LoadTLSConfig(test.issrv, test.key, test.cert, test.rootCert)
+			if test.errMsg == "" {
+				assert.Equal(t, test.expected, tlsCfg)
+			} else {
+				assert.Contains(t, err.Error(), test.errMsg)
+			}
+		})
+	}
 }
 
 func TestLoadPEMEncodedConfig(t *testing.T) {

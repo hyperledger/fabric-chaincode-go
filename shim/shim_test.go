@@ -146,27 +146,38 @@ func TestChaincodeServerStart(t *testing.T) {
 		{
 			name:        "Missing Chaincode ID",
 			ccsrv:       ChaincodeServer{},
-			expectedErr: "name must be specified",
+			expectedErr: "ccid must be specified",
 		},
 		{
 			name:        "Missing Peer Address",
-			ccsrv:       ChaincodeServer{Name: "cc"},
+			ccsrv:       ChaincodeServer{CCID: "cc"},
 			expectedErr: "address must be specified",
 		},
 		{
 			name:        "Missing Peer Address and Chaincode Address",
-			ccsrv:       ChaincodeServer{Name: "cc", Address: "127.0.0.1:12345"},
+			ccsrv:       ChaincodeServer{CCID: "cc", Address: "127.0.0.1:12345"},
 			expectedErr: "chaincode must be specified",
 		},
 		{
 			name:        "Badly formed chaincode server address",
-			ccsrv:       ChaincodeServer{Name: "cc", Address: "127.0.0.1", CC: &mockChaincode{}},
+			ccsrv:       ChaincodeServer{CCID: "cc", Address: "127.0.0.1", CC: &mockChaincode{}, TLSProps: TLSProperties{Disabled: true}},
 			expectedErr: "listen tcp: address 127.0.0.1: missing port in address",
 		},
 		{
 			name:        "Bad host in chaincode server address",
-			ccsrv:       ChaincodeServer{Name: "cc", Address: "__badhost__:12345", CC: &mockChaincode{}},
+			ccsrv:       ChaincodeServer{CCID: "cc", Address: "__badhost__:12345", CC: &mockChaincode{}, TLSProps: TLSProperties{Disabled: true}},
 			containsErr: "listen tcp: lookup __badhost__",
+		},
+		// Basic TLS tests, path tests
+		{
+			name:        "TLS enabled but key path not provided",
+			ccsrv:       ChaincodeServer{CCID: "cc", Address: "host:12345", CC: &mockChaincode{}, TLSProps: TLSProperties{Disabled: false}},
+			containsErr: "key not provided",
+		},
+		{
+			name:        "TLS enabled but cert path not provided",
+			ccsrv:       ChaincodeServer{CCID: "cc", Address: "host:12345", CC: &mockChaincode{}, TLSProps: TLSProperties{Disabled: false, Key: []byte("key")}},
+			containsErr: "cert not provided",
 		},
 	}
 

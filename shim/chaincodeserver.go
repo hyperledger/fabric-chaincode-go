@@ -4,28 +4,48 @@
 package shim
 
 import (
+	"crypto/tls"
 	"errors"
 
 	"github.com/hyperledger/fabric-chaincode-go/shim/internal"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
+
+	"google.golang.org/grpc/keepalive"
 )
+
+// TLSProperties passed to ChaincodeServer
+type TLSProperties struct {
+	//Disabled forces default to be TLS enabled
+	Disabled bool
+	Key      []byte
+	Cert     []byte
+	// ClientCACerts set if connecting peer should be verified
+	ClientCACerts []byte
+}
 
 // ChaincodeServer encapsulates basic properties needed for a chaincode server
 type ChaincodeServer struct {
-	Name    string
+	// CCID should match chaincode's package name on peer
+	CCID string
+	// Addesss is the listen address of the chaincode server
 	Address string
-	CC      Chaincode
+	// CC is the chaincode that handles Init and Invoke
+	CC Chaincode
+	// TLSProps is the TLS properties passed to chaincode server
+	TLSProps TLSProperties
+	// KaOpts keepalive options, sensible defaults provided if nil
+	KaOpts *keepalive.ServerParameters
 }
 
 // Connect the bidi stream entry point called by chaincode to register with the Peer.
 func (cs *ChaincodeServer) Connect(stream pb.Chaincode_ConnectServer) error {
-	return chatWithPeer(cs.Name, stream, cs.CC)
+	return chatWithPeer(cs.CCID, stream, cs.CC)
 }
 
 // Start the server
 func (cs *ChaincodeServer) Start() error {
-	if cs.Name == "" {
-		return errors.New("name must be specified")
+	if cs.CCID == "" {
+		return errors.New("ccid must be specified")
 	}
 
 	if cs.Address == "" {
@@ -36,8 +56,17 @@ func (cs *ChaincodeServer) Start() error {
 		return errors.New("chaincode must be specified")
 	}
 
+	var tlsCfg *tls.Config
+	var err error
+	if !cs.TLSProps.Disabled {
+		tlsCfg, err = internal.LoadTLSConfig(true, cs.TLSProps.Key, cs.TLSProps.Cert, cs.TLSProps.ClientCACerts)
+		if err != nil {
+			return err
+		}
+	}
+
 	// create listener and grpc server
-	server, err := internal.NewServer(cs.Address, nil)
+	server, err := internal.NewServer(cs.Address, tlsCfg, cs.KaOpts)
 	if err != nil {
 		return err
 	}
