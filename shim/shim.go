@@ -65,7 +65,8 @@ func Start(cc Chaincode) error {
 		return errors.New("only one of flags 'peer.address' or 'chaincode.address' must be set")
 	}
 
-	conf, err := internal.LoadConfig()
+	isserver := *chaincodeAddress != ""
+	conf, err := internal.LoadConfig(isserver)
 	if err != nil {
 		return err
 	}

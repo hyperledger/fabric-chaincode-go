@@ -116,10 +116,43 @@ func TestLoadConfig(t *testing.T) {
 		RootCAs:      rootPool,
 	}
 
+	tlsConfigNoClientVerification := &tls.Config{
+		MinVersion:             tls.VersionTLS12,
+		Certificates:           []tls.Certificate{clientCert},
+		SessionTicketsDisabled: true,
+		CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+		},
+	}
+
+	tlsServerConfig := &tls.Config{
+		MinVersion:             tls.VersionTLS12,
+		Certificates:           []tls.Certificate{clientCert},
+		SessionTicketsDisabled: true,
+		CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+		},
+		ClientAuth: tls.RequireAndVerifyClientCert,
+		RootCAs:    rootPool,
+	}
+
 	kaOpts := keepalive.ClientParameters{
 		Time:                1 * time.Minute,
 		Timeout:             20 * time.Second,
 		PermitWithoutStream: true,
+	}
+
+	srvKaOpts := keepalive.ServerParameters{
+		Time:    1 * time.Minute,
+		Timeout: 20 * time.Second,
 	}
 
 	var tests = []struct {
@@ -127,6 +160,7 @@ func TestLoadConfig(t *testing.T) {
 		env      map[string]string
 		expected Config
 		errMsg   string
+		issrv    bool
 	}{
 		{
 			name: "TLS disabled",
@@ -137,7 +171,41 @@ func TestLoadConfig(t *testing.T) {
 			expected: Config{
 				ChaincodeName: "testCC",
 				KaOpts:        kaOpts,
+				ServerKaOpts:  srvKaOpts,
 			},
+		},
+		{
+			name: "TLS Enabled but without client auth for server",
+			env: map[string]string{
+				"CORE_CHAINCODE_ID_NAME":    "testCC",
+				"CORE_PEER_TLS_ENABLED":     "true",
+				"CORE_TLS_CLIENT_KEY_PATH":  keyFile.Name(),
+				"CORE_TLS_CLIENT_CERT_PATH": certFile.Name(),
+			},
+			expected: Config{
+				ChaincodeName: "testCC",
+				TLS:           tlsConfigNoClientVerification,
+				KaOpts:        kaOpts,
+				ServerKaOpts:  srvKaOpts,
+			},
+			issrv: true,
+		},
+		{
+			name: "TLS Enabled for server",
+			env: map[string]string{
+				"CORE_CHAINCODE_ID_NAME":      "testCC",
+				"CORE_PEER_TLS_ENABLED":       "true",
+				"CORE_TLS_CLIENT_KEY_PATH":    keyFile.Name(),
+				"CORE_TLS_CLIENT_CERT_PATH":   certFile.Name(),
+				"CORE_PEER_TLS_ROOTCERT_FILE": rootFile.Name(),
+			},
+			expected: Config{
+				ChaincodeName: "testCC",
+				TLS:           tlsServerConfig,
+				KaOpts:        kaOpts,
+				ServerKaOpts:  srvKaOpts,
+			},
+			issrv: true,
 		},
 		{
 			name: "TLS Enabled",
@@ -152,6 +220,7 @@ func TestLoadConfig(t *testing.T) {
 				ChaincodeName: "testCC",
 				TLS:           tlsConfig,
 				KaOpts:        kaOpts,
+				ServerKaOpts:  srvKaOpts,
 			},
 		},
 		{
@@ -251,7 +320,7 @@ func TestLoadConfig(t *testing.T) {
 			for k, v := range test.env {
 				os.Setenv(k, v)
 			}
-			conf, err := LoadConfig()
+			conf, err := LoadConfig(test.issrv)
 			if test.errMsg == "" {
 				assert.Equal(t, test.expected, conf)
 			} else {
