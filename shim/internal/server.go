@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 )
 
@@ -20,11 +21,13 @@ const (
 	connectionTimeout = 5 * time.Second
 )
 
+// Server abstracts grpc service properties
 type Server struct {
 	Listener net.Listener
 	Server   *grpc.Server
 }
 
+// Start the server
 func (s *Server) Start() error {
 	if s.Listener == nil {
 		return errors.New("nil listener")
@@ -37,6 +40,7 @@ func (s *Server) Start() error {
 	return s.Server.Serve(s.Listener)
 }
 
+// Stop the server
 func (s *Server) Stop() {
 	if s.Server != nil {
 		s.Server.Stop()
@@ -45,7 +49,11 @@ func (s *Server) Stop() {
 
 // NewServer creates a new implementation of a GRPC Server given a
 // listen address
-func NewServer(address string, tlsConf *tls.Config) (*Server, error) {
+func NewServer(
+	address string,
+	tlsConf *tls.Config,
+	srvKaOpts *keepalive.ServerParameters,
+) (*Server, error) {
 	if address == "" {
 		return nil, errors.New("server listen address not provided")
 	}
@@ -56,11 +64,21 @@ func NewServer(address string, tlsConf *tls.Config) (*Server, error) {
 		return nil, err
 	}
 
-	//set up our server options
+	//set up server options for keepalive and TLS
 	var serverOpts []grpc.ServerOption
 
+	if srvKaOpts != nil {
+		serverOpts = append(serverOpts, grpc.KeepaliveParams(*srvKaOpts))
+	} else {
+		serverKeepAliveParameters := keepalive.ServerParameters{
+			Time:    1 * time.Minute,
+			Timeout: 20 * time.Second,
+		}
+		serverOpts = append(serverOpts, grpc.KeepaliveParams(serverKeepAliveParameters))
+	}
+
 	if tlsConf != nil {
-		//TODO FAB-16690 - add TLS support
+		serverOpts = append(serverOpts, grpc.Creds(credentials.NewTLS(tlsConf)))
 	}
 
 	// Default properties follow - let's start simple and stick with defaults for now.
@@ -70,13 +88,6 @@ func NewServer(address string, tlsConf *tls.Config) (*Server, error) {
 	// set max send and recv msg sizes
 	serverOpts = append(serverOpts, grpc.MaxSendMsgSize(maxSendMessageSize))
 	serverOpts = append(serverOpts, grpc.MaxRecvMsgSize(maxRecvMessageSize))
-
-	//set keepalive
-	kap := keepalive.ServerParameters{
-		Time:    serverInterval,
-		Timeout: serverTimeout,
-	}
-	serverOpts = append(serverOpts, grpc.KeepaliveParams(kap))
 
 	//set enforcement policy
 	kep := keepalive.EnforcementPolicy{
