@@ -49,7 +49,7 @@ XIlJQdS/9afDi32qZWZfe3kAUAs0
 -----END CERTIFICATE-----
 `
 
-func TestLoadConfig(t *testing.T) {
+func TestLoadBase64EncodedConfig(t *testing.T) {
 	// setup key/cert files
 	testDir, err := ioutil.TempDir("", "shiminternal")
 	if err != nil {
@@ -259,7 +259,169 @@ func TestLoadConfig(t *testing.T) {
 			}
 		})
 	}
+}
 
+func TestLoadPEMEncodedConfig(t *testing.T) {
+	// setup key/cert files
+	testDir, err := ioutil.TempDir("", "shiminternal")
+	if err != nil {
+		t.Fatalf("Failed to test directory: %s", err)
+	}
+	defer os.RemoveAll(testDir)
+
+	keyFile, err := ioutil.TempFile(testDir, "testKey")
+	if err != nil {
+		t.Fatalf("Failed to create key file: %s", err)
+	}
+	if _, err := keyFile.WriteString(keyPEM); err != nil {
+		t.Fatalf("Failed to write to key file: %s", err)
+	}
+
+	certFile, err := ioutil.TempFile(testDir, "testCert")
+	if err != nil {
+		t.Fatalf("Failed to create cert file: %s", err)
+	}
+	if _, err := certFile.WriteString(certPEM); err != nil {
+		t.Fatalf("Failed to write to cert file: %s", err)
+	}
+
+	rootFile, err := ioutil.TempFile(testDir, "testRoot")
+	if err != nil {
+		t.Fatalf("Failed to create root file: %s", err)
+	}
+	if _, err := rootFile.WriteString(rootPEM); err != nil {
+		t.Fatalf("Failed to write to root file: %s", err)
+	}
+
+	keyFile64, err := ioutil.TempFile(testDir, "testKey64")
+	if err != nil {
+		t.Fatalf("Failed to create key file: %s", err)
+	}
+	b64Key := base64.StdEncoding.EncodeToString([]byte(keyPEM))
+	if _, err := keyFile64.WriteString(b64Key); err != nil {
+		t.Fatalf("Failed to write to key file: %s", err)
+	}
+
+	certFile64, err := ioutil.TempFile(testDir, "testCert64")
+	if err != nil {
+		t.Fatalf("Failed to create cert file: %s", err)
+	}
+	b64Cert := base64.StdEncoding.EncodeToString([]byte(certPEM))
+	if _, err := certFile64.WriteString(b64Cert); err != nil {
+		t.Fatalf("Failed to write to cert file: %s", err)
+	}
+
+	defer cleanupEnv()
+
+	// expected TLS config
+	rootPool := x509.NewCertPool()
+	rootPool.AppendCertsFromPEM([]byte(rootPEM))
+	clientCert, err := tls.X509KeyPair([]byte(certPEM), []byte(keyPEM))
+	if err != nil {
+		t.Fatalf("Failed to load client cert pair: %s", err)
+	}
+
+	tlsConfig := &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		Certificates: []tls.Certificate{clientCert},
+		RootCAs:      rootPool,
+	}
+
+	kaOpts := keepalive.ClientParameters{
+		Time:                1 * time.Minute,
+		Timeout:             20 * time.Second,
+		PermitWithoutStream: true,
+	}
+
+	var tests = []struct {
+		name     string
+		env      map[string]string
+		expected Config
+		errMsg   string
+	}{
+		{
+			name: "TLS Enabled with PEM-encoded variables",
+			env: map[string]string{
+				"CORE_CHAINCODE_ID_NAME":      "testCC",
+				"CORE_PEER_TLS_ENABLED":       "true",
+				"CORE_TLS_CLIENT_KEY_FILE":    keyFile.Name(),
+				"CORE_TLS_CLIENT_CERT_FILE":   certFile.Name(),
+				"CORE_PEER_TLS_ROOTCERT_FILE": rootFile.Name(),
+			},
+			expected: Config{
+				ChaincodeName: "testCC",
+				TLS:           tlsConfig,
+				KaOpts:        kaOpts,
+			},
+		},
+		{
+			name: "Client cert uses base64 encoding",
+			env: map[string]string{
+				"CORE_CHAINCODE_ID_NAME":      "testCC",
+				"CORE_PEER_TLS_ENABLED":       "true",
+				"CORE_TLS_CLIENT_KEY_FILE":    keyFile.Name(),
+				"CORE_TLS_CLIENT_CERT_PATH":   certFile64.Name(),
+				"CORE_PEER_TLS_ROOTCERT_FILE": rootFile.Name(),
+			},
+			expected: Config{
+				ChaincodeName: "testCC",
+				TLS:           tlsConfig,
+				KaOpts:        kaOpts,
+			},
+		},
+		{
+			name: "Client key uses base64 encoding",
+			env: map[string]string{
+				"CORE_CHAINCODE_ID_NAME":      "testCC",
+				"CORE_PEER_TLS_ENABLED":       "true",
+				"CORE_TLS_CLIENT_KEY_PATH":    keyFile64.Name(),
+				"CORE_TLS_CLIENT_CERT_FILE":   certFile.Name(),
+				"CORE_PEER_TLS_ROOTCERT_FILE": rootFile.Name(),
+			},
+			expected: Config{
+				ChaincodeName: "testCC",
+				TLS:           tlsConfig,
+				KaOpts:        kaOpts,
+			},
+		},
+		{
+			name: "Client cert uses base64 encoding with PEM variable",
+			env: map[string]string{
+				"CORE_CHAINCODE_ID_NAME":      "testCC",
+				"CORE_PEER_TLS_ENABLED":       "true",
+				"CORE_TLS_CLIENT_KEY_FILE":    keyFile.Name(),
+				"CORE_TLS_CLIENT_CERT_FILE":   certFile64.Name(),
+				"CORE_PEER_TLS_ROOTCERT_FILE": rootFile.Name(),
+			},
+			errMsg: "failed to parse client key pair",
+		},
+		{
+			name: "Client key uses base64 encoding with PEM variable",
+			env: map[string]string{
+				"CORE_CHAINCODE_ID_NAME":      "testCC",
+				"CORE_PEER_TLS_ENABLED":       "true",
+				"CORE_TLS_CLIENT_KEY_FILE":    keyFile64.Name(),
+				"CORE_TLS_CLIENT_CERT_FILE":   certFile.Name(),
+				"CORE_PEER_TLS_ROOTCERT_FILE": rootFile.Name(),
+			},
+			errMsg: "failed to parse client key pair",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			for k, v := range test.env {
+				os.Setenv(k, v)
+			}
+			conf, err := LoadConfig()
+			if test.errMsg == "" {
+				assert.Equal(t, test.expected, conf)
+			} else {
+				assert.Contains(t, err.Error(), test.errMsg)
+			}
+		})
+	}
 }
 
 func cleanupEnv() {
