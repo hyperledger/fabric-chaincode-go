@@ -88,7 +88,7 @@ func (c *clientIdentityImpl) GetID() (string, error) {
 	// When IdeMix, c.cert is nil for x509 type
 	// Here will return "", as there is no x509 type cert for generate id value with logic below.
 	if c.cert == nil {
-		return "", nil
+		return "", fmt.Errorf("cannot determine identity")
 	}
 	// The leading "x509::" distinguishes this as an X509 certificate, and
 	// the subject and issuer DNs uniquely identify the X509 certificate.
