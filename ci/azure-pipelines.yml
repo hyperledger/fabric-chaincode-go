@@ -16,21 +16,15 @@ variables:
 pool:
   vmImage: ubuntu-16.04
 container:
-  image: golang:1.12.9-buster
+  image: sykesm/fabric-chaincode-go:0.1
 
 steps:
   - checkout: self
     clean: true
     fetchDepth: 1
 
-  - script: go get -u golang.org/x/lint/golint
-    displayName: Install Go Linter
-
-  - script: golint -set_exit_status ./...
-    displayName: Lint Code
-
-  - script: go vet ./...
-    displayName: Vet Code
+  - script: ci/lint.sh
+    displayName: Vet and lint
 
   - script: go test -race ./...
-    displayName: Run Tests
+    displayName: Run tests
