@@ -28,3 +28,9 @@ steps:
 
   - script: go test -race ./...
     displayName: Run tests
+
+  - script: go get -u github.com/DATA-DOG/godog/cmd/godog
+    displayName: Install Godog
+
+  - script: cd contractapi/internal/functionaltests; godog
+    displayName: Run Functional Tests
