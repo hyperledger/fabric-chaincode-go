@@ -66,6 +66,11 @@ func TestClient(t *testing.T) {
 	assert.False(t, found, "Attribute 'foo' should not be found in the submitter cert")
 	err = cid.AssertAttributeValue(stub, "foo", "")
 	assert.Error(t, err, "AssertAttributeValue should have returned an error with no attribute")
+	found, err = cid.HasOUValue(stub, "Fabric")
+	assert.NoError(t, err, "Error getting X509 cert of the submitter of the transaction")
+	assert.True(t, found)
+	found, err = cid.HasOUValue(stub, "foo")
+	assert.False(t, found, "OU 'foo' should not be found in the submitter cert")
 
 	stub, err = getMockStubWithAttrs()
 	assert.NoError(t, err, "Failed to get mock submitter")
@@ -83,6 +88,8 @@ func TestClient(t *testing.T) {
 	assert.NoError(t, err, "Error in AssertAttributeValue")
 	err = cid.AssertAttributeValue(stub, "attr1", "val2")
 	assert.Error(t, err, "Assert should have failed; value was val1, not val2")
+	found, err = cid.HasOUValue(stub, "foo")
+	assert.NoError(t, err, "Error getting X509 cert of the submitter of the transaction")
 
 	// Error case1
 	stub, err = getMockStubWithNilCreator()
