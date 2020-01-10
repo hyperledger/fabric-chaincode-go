@@ -4,7 +4,6 @@
 package internal_test
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -14,75 +13,28 @@ import (
 	"time"
 
 	. "github.com/hyperledger/fabric-chaincode-go/shim/internal"
-	peerpb "github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 )
 
-var keyPEM = `-----BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgKg8jpiNIB5LXLull
-IRoYMsQximSiU7XvGCYLslx4GauhRANCAARBGdslxalpg0dxk9GwVhi+Qw9oKZPE
-n1hWPFmusDKtNbDLsHd9k1lU+SWnJKYlg7hmaUvxC1lR2M6KmvAwSUfN
------END PRIVATE KEY-----
+var keyPEM = `-----BEGIN EC PRIVATE KEY-----
+MHcCAQEEIMLemLh3+uDzww1pvqP6Xj2Z0Kc6yqf3RxyfTBNwRuuyoAoGCCqGSM49
+AwEHoUQDQgAEDB3l94vM7EqKr2L/vhqU5IsEub0rviqCAaWGiVAPp3orb/LJqFLS
+yo/k60rhUiir6iD4S4pb5TEb2ouWylQI3A==
+-----END EC PRIVATE KEY-----
 `
 var certPEM = `-----BEGIN CERTIFICATE-----
-MIICaTCCAhCgAwIBAgIQS46wcUDY2nJ2gQ/7fp/ptzAKBggqhkjOPQQDAjB2MQsw
-CQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5pYTEWMBQGA1UEBxMNU2FuIEZy
-YW5jaXNjbzEZMBcGA1UEChMQb3JnMS5leGFtcGxlLmNvbTEfMB0GA1UEAxMWdGxz
-Y2Eub3JnMS5leGFtcGxlLmNvbTAeFw0xOTEyMTIwMTA1NTBaFw0yOTEyMDkwMTA1
-NTBaMFoxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpDYWxpZm9ybmlhMRYwFAYDVQQH
-Ew1TYW4gRnJhbmNpc2NvMR4wHAYDVQQDExVteWNjLm9yZzEuZXhhbXBsZS5jb20w
-WTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARBGdslxalpg0dxk9GwVhi+Qw9oKZPE
-n1hWPFmusDKtNbDLsHd9k1lU+SWnJKYlg7hmaUvxC1lR2M6KmvAwSUfNo4GbMIGY
-MA4GA1UdDwEB/wQEAwIFoDAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIw
-DAYDVR0TAQH/BAIwADArBgNVHSMEJDAigCBxQqUF6hEsSgXTc47WT4U58SOdgX8n
-8RlMuxFg0wRtjjAsBgNVHREEJTAjghVteWNjLm9yZzEuZXhhbXBsZS5jb22CBG15
-Y2OHBH8AAAEwCgYIKoZIzj0EAwIDRwAwRAIgWgxAuGibD+Da/qCLBryJMDGlyIrx
-HV+tI33lEy1B9qoCIEJD4xipI2WYp1sHmK2nxYPcoTb9WLFdNZ6twKZyw9c8
+MIIBdDCCARqgAwIBAgIRAKCiW5r6W32jGUn+l9BORMAwCgYIKoZIzj0EAwIwEjEQ
+MA4GA1UEChMHQWNtZSBDbzAeFw0xODA4MjExMDI1MzJaFw0yODA4MTgxMDI1MzJa
+MBIxEDAOBgNVBAoTB0FjbWUgQ28wWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAQM
+HeX3i8zsSoqvYv++GpTkiwS5vSu+KoIBpYaJUA+neitv8smoUtLKj+TrSuFSKKvq
+IPhLilvlMRvai5bKVAjco1EwTzAOBgNVHQ8BAf8EBAMCBaAwEwYDVR0lBAwwCgYI
+KwYBBQUHAwEwDAYDVR0TAQH/BAIwADAaBgNVHREEEzARgglsb2NhbGhvc3SHBH8A
+AAEwCgYIKoZIzj0EAwIDSAAwRQIgOaYc3pdGf2j0uXRyvdBJq2PlK9FkgvsUjXOT
+bQ9fWRkCIQCr1FiRRzapgtrnttDn3O2fhLlbrw67kClzY8pIIN42Qw==
 -----END CERTIFICATE-----
 `
 var rootPEM = `-----BEGIN CERTIFICATE-----
-MIICSTCCAe+gAwIBAgIQWpamEC5/D2N5JKS8FEpgTzAKBggqhkjOPQQDAjB2MQsw
-CQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5pYTEWMBQGA1UEBxMNU2FuIEZy
-YW5jaXNjbzEZMBcGA1UEChMQb3JnMS5leGFtcGxlLmNvbTEfMB0GA1UEAxMWdGxz
-Y2Eub3JnMS5leGFtcGxlLmNvbTAeFw0xOTEyMTIwMTA1NTBaFw0yOTEyMDkwMTA1
-NTBaMHYxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpDYWxpZm9ybmlhMRYwFAYDVQQH
-Ew1TYW4gRnJhbmNpc2NvMRkwFwYDVQQKExBvcmcxLmV4YW1wbGUuY29tMR8wHQYD
-VQQDExZ0bHNjYS5vcmcxLmV4YW1wbGUuY29tMFkwEwYHKoZIzj0CAQYIKoZIzj0D
-AQcDQgAE2eFjoZkB/ozmheZZ9P05kUXAQAG+j0oTmRr9vX2qJa+tyrbS/i4UKrXo
-82dqcDmmL16l2ukBXt7/aBre5WbVEaNfMF0wDgYDVR0PAQH/BAQDAgGmMA8GA1Ud
-JQQIMAYGBFUdJQAwDwYDVR0TAQH/BAUwAwEB/zApBgNVHQ4EIgQgcUKlBeoRLEoF
-03OO1k+FOfEjnYF/J/EZTLsRYNMEbY4wCgYIKoZIzj0EAwIDSAAwRQIhANmPRnJi
-p7amrl9rF5xWtW0rR+y9uSCi6cy/T8bJl1JTAiATHlHcuNhHFeGb+Vl512FC3sGM
-bHHlP/A/QkbGqJL4HQ==
------END CERTIFICATE-----
-`
-
-var clientKeyPEM = `-----BEGIN EC PRIVATE KEY-----
-MHcCAQEEINVHep4/z6iPa151Ipp4MmCb1l/VKkY3vuMfUQf3LhQboAoGCCqGSM49
-AwEHoUQDQgAEcE6hZ7muszSi5wXIVKPdIuLYPTIxQxj+jekPRfFnJF/RJKM0Nj3T
-Bk9spwCHwu1t3REyobjaZcFQk0y32Pje5A==
------END EC PRIVATE KEY-----
-`
-
-var clientCertPEM = `-----BEGIN CERTIFICATE-----
-MIICAzCCAaqgAwIBAgIQe/ZUgn+/dH6FGrx+dr/PfjAKBggqhkjOPQQDAjBYMQsw
-CQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5pYTEWMBQGA1UEBxMNU2FuIEZy
-YW5jaXNjbzENMAsGA1UEChMET3JnMTENMAsGA1UEAxMET3JnMTAeFw0xODA4MjEw
-ODI1MzNaFw0yODA4MTgwODI1MzNaMGgxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpD
-YWxpZm9ybmlhMRYwFAYDVQQHEw1TYW4gRnJhbmNpc2NvMRUwEwYDVQQKEwxPcmcx
-LWNsaWVudDExFTATBgNVBAMTDE9yZzEtY2xpZW50MTBZMBMGByqGSM49AgEGCCqG
-SM49AwEHA0IABHBOoWe5rrM0oucFyFSj3SLi2D0yMUMY/o3pD0XxZyRf0SSjNDY9
-0wZPbKcAh8Ltbd0RMqG42mXBUJNMt9j43uSjRjBEMA4GA1UdDwEB/wQEAwIFoDAT
-BgNVHSUEDDAKBggrBgEFBQcDAjAMBgNVHRMBAf8EAjAAMA8GA1UdIwQIMAaABAEC
-AwQwCgYIKoZIzj0EAwIDRwAwRAIgaK/prRkZS6zctxwBUl2QApUrH7pMmab30Nn9
-ER8f3m0CICBZ9XoxKXEFFcSRpfiA2/vzoOPg76lRXcCklxzGSJYu
------END CERTIFICATE-----
-`
-
-var clientRootPEM = `-----BEGIN CERTIFICATE-----
 MIIB8TCCAZegAwIBAgIQUigdJy6IudO7sVOXsKVrtzAKBggqhkjOPQQDAjBYMQsw
 CQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5pYTEWMBQGA1UEBxMNU2FuIEZy
 YW5jaXNjbzENMAsGA1UEChMET3JnMTENMAsGA1UEAxMET3JnMTAeFw0xODA4MjEw
@@ -161,7 +113,7 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 	tlsConfig := &tls.Config{
 		MinVersion:   tls.VersionTLS12,
 		Certificates: []tls.Certificate{clientCert},
-		ClientCAs:    rootPool,
+		RootCAs:      rootPool,
 	}
 
 	kaOpts := keepalive.ClientParameters{
@@ -311,7 +263,7 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 	tlsServerConfig := &tls.Config{
 		MinVersion:             tls.VersionTLS12,
 		Certificates:           []tls.Certificate{clientCert},
-		ClientCAs:              rootPool,
+		RootCAs:                rootPool,
 		SessionTicketsDisabled: true,
 		CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
@@ -326,7 +278,7 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 	tlsServerNonMutualConfig := &tls.Config{
 		MinVersion:             tls.VersionTLS12,
 		Certificates:           []tls.Certificate{clientCert},
-		ClientCAs:              nil,
+		RootCAs:                nil,
 		SessionTicketsDisabled: true,
 		CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
@@ -465,7 +417,7 @@ func TestLoadPEMEncodedConfig(t *testing.T) {
 	tlsConfig := &tls.Config{
 		MinVersion:   tls.VersionTLS12,
 		Certificates: []tls.Certificate{clientCert},
-		ClientCAs:    rootPool,
+		RootCAs:      rootPool,
 	}
 
 	kaOpts := keepalive.ClientParameters{
@@ -560,146 +512,6 @@ func TestLoadPEMEncodedConfig(t *testing.T) {
 				assert.Equal(t, test.expected, conf)
 			} else {
 				assert.Contains(t, err.Error(), test.errMsg)
-			}
-		})
-	}
-}
-
-func newTLSConnection(t *testing.T, address string, crt, key, rootCert []byte) *grpc.ClientConn {
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-	}
-
-	tlsConfig.RootCAs = x509.NewCertPool()
-	tlsConfig.RootCAs.AppendCertsFromPEM(rootCert)
-	if crt != nil && key != nil {
-		cert, err := tls.X509KeyPair(crt, key)
-		assert.NoError(t, err)
-		assert.NotNil(t, cert)
-
-		tlsConfig.Certificates = append(tlsConfig.Certificates, cert)
-	}
-
-	var dialOpts []grpc.DialOption
-	dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-
-	kap := keepalive.ClientParameters{
-		Time:                time.Duration(1) * time.Minute,
-		Timeout:             time.Duration(20) * time.Second,
-		PermitWithoutStream: true,
-	}
-
-	dialOpts = append(dialOpts, grpc.WithKeepaliveParams(kap))
-
-	ctx, cancel := context.WithTimeout(context.Background(), (5 * time.Second))
-	defer cancel()
-	conn, err := grpc.DialContext(ctx, address, dialOpts...)
-	assert.NoError(t, err)
-	assert.NotNil(t, conn)
-
-	return conn
-}
-
-func TestTLSClientWithChaincodeServer(t *testing.T) {
-	rootPool := x509.NewCertPool()
-	ok := rootPool.AppendCertsFromPEM([]byte(clientRootPEM))
-	if !ok {
-		t.Fatal("failed to create test root cert pool")
-	}
-
-	cert, err := tls.X509KeyPair([]byte(certPEM), []byte(keyPEM))
-	if err != nil {
-		t.Fatalf("Failed to load client cert pair: %s", err)
-	}
-
-	tlsServerConfig := &tls.Config{
-		MinVersion:             tls.VersionTLS12,
-		Certificates:           []tls.Certificate{cert},
-		ClientCAs:              rootPool,
-		SessionTicketsDisabled: true,
-		CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-		},
-		ClientAuth: tls.RequireAndVerifyClientCert,
-	}
-
-	// given server is good and expects valid TLS connection, test good and invalid scenarios
-	var tlsTests = []struct {
-		name           string
-		issrv          bool
-		clientKey      []byte
-		clientCert     []byte
-		clientRootCert []byte
-		expected       *tls.Config
-		errMsg         string
-		success        bool
-		address        string
-	}{
-		{
-			name:           "Good TLS",
-			issrv:          true,
-			clientKey:      []byte(clientKeyPEM),
-			clientCert:     []byte(clientCertPEM),
-			clientRootCert: []byte(rootPEM),
-			success:        true,
-			address:        "127.0.0.1:0",
-		},
-		{
-			name:           "Bad server RootCA",
-			issrv:          true,
-			clientKey:      []byte(clientKeyPEM),
-			clientCert:     []byte(clientCertPEM),
-			clientRootCert: []byte(clientRootPEM),
-			success:        false,
-			errMsg:         "transport: authentication handshake failed: x509: certificate signed by unknown authority",
-			address:        "127.0.0.1:0",
-		},
-		{
-			name:           "Bad client cert",
-			issrv:          true,
-			clientKey:      []byte(keyPEM),
-			clientCert:     []byte(certPEM),
-			clientRootCert: []byte(rootPEM),
-			success:        false,
-			errMsg:         "all SubConns are in TransientFailure",
-			address:        "127.0.0.1:0",
-		},
-		{
-			name:           "No client cert",
-			issrv:          true,
-			clientRootCert: []byte(rootPEM),
-			success:        false,
-			errMsg:         "all SubConns are in TransientFailure",
-			address:        "127.0.0.1:0",
-		},
-	}
-
-	for _, test := range tlsTests {
-		t.Run(test.name, func(t *testing.T) {
-			srv, err := NewServer(test.address, tlsServerConfig, nil)
-			if err != nil {
-				t.Fatalf("error creating server for test: %v", err)
-			}
-			defer srv.Stop()
-			go srv.Start()
-
-			conn := newTLSConnection(t, srv.Listener.Addr().String(), test.clientCert, test.clientKey, test.clientRootCert)
-			assert.NotNil(t, conn)
-
-			ccclient := peerpb.NewChaincodeClient(conn)
-			assert.NotNil(t, ccclient)
-
-			stream, err := ccclient.Connect(context.Background())
-			if test.success {
-				assert.NoError(t, err)
-				assert.NotNil(t, stream)
-			} else {
-				assert.Error(t, err)
-				assert.Regexp(t, test.errMsg, err.Error())
 			}
 		})
 	}
