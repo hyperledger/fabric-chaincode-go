@@ -127,7 +127,7 @@ func LoadTLSConfig(isserver bool, key, cert, root []byte) (*tls.Config, error) {
 	tlscfg := &tls.Config{
 		MinVersion:   tls.VersionTLS12,
 		Certificates: []tls.Certificate{cccert},
-		ClientCAs:    rootCertPool,
+		RootCAs:      rootCertPool,
 	}
 
 	//follow Peer's server default config properties
