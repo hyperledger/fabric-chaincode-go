@@ -6,6 +6,7 @@ package shim
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"os"
 	"testing"
 
 	"github.com/golang/protobuf/proto"
@@ -233,6 +234,19 @@ func TestChaincodeStubGetTxTimestamp(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, proto.Equal(ts, tt.ts))
 	}
+}
+
+func TestGetMSPID(t *testing.T) {
+	_, err := GetMSPID()
+	assert.EqualError(t, err, "'CORE_PEER_LOCALMSPID' is not set")
+
+	os.Setenv("CORE_PEER_LOCALMSPID", "mspid")
+
+	mspid, err := GetMSPID()
+	assert.NoError(t, err)
+	assert.Equal(t, "mspid", mspid)
+
+	os.Unsetenv("CORE_PEER_LOCALMSPID")
 }
 
 func TestChaincodeStubHandlers(t *testing.T) {
