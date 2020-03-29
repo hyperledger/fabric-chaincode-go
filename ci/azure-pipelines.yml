@@ -16,7 +16,7 @@ variables:
 pool:
   vmImage: ubuntu-16.04
 container:
-  image: sykesm/fabric-chaincode-go:0.1
+  image: sykesm/fabric-chaincode-go:0.2
 
 steps:
   - checkout: self
