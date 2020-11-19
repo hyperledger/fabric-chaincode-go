@@ -4,7 +4,6 @@
 
 name: $(SourceBranchName)-$(Date:yyyyMMdd)$(Rev:.rrr)
 trigger:
-  batch: false
   branches:
     include:
       - master
@@ -14,16 +13,18 @@ variables:
   branch: $[ coalesce(variables['system.PullRequest.TargetBranch'], variables['build.SourceBranchName']) ]
 
 pool:
-  vmImage: ubuntu-16.04
+  vmImage: ubuntu-20.04
 container:
-  image: sykesm/fabric-chaincode-go:0.2
+  image: golang:1.14.12-buster
 
 steps:
   - checkout: self
     clean: true
     fetchDepth: 1
+  - script: ci/scripts/install_tools.sh
+    displayName: Install Tools
 
-  - script: ci/lint.sh
+  - script: ci/scripts/lint.sh
     displayName: Vet and lint
 
   - script: go test -race ./...
