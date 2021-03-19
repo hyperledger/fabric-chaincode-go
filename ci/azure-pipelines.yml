@@ -6,7 +6,7 @@ name: $(SourceBranchName)-$(Date:yyyyMMdd)$(Rev:.rrr)
 trigger:
   branches:
     include:
-      - master
+      - main
       - release-*
 
 variables:
