@@ -250,6 +250,39 @@ func TestPutEmptyState(t *testing.T) {
 
 }
 
+func TestDelPrivateData(t *testing.T) {
+	stub := NewMockStub("TestPutPrivateData", &mock.Chaincode{})
+	stub.MockTransactionStart("1")
+	stub.PutPrivateData("collection1", "key1", []byte("Test Data"))
+	stub.MockTransactionEnd("1")
+
+	//case1 - delete existing key
+	err := stub.DelPrivateData("collection1", "key1")
+	if err != nil {
+		t.Fatalf("Not expecting error, but got: %s", err)
+	}
+
+	data, err := stub.GetPrivateData("collection1", "key1")
+	if err != nil {
+		t.Fatalf("Not expecting error, but got: %s", err)
+	}
+
+	if data != nil {
+		t.Fatalf("Data not deleted: %v", data)
+	}
+	//case2 - delete non-existing key
+	err = stub.DelPrivateData("collection1", "key2")
+	if err != nil {
+		t.Fatalf("Not expecting error, but got: %s", err)
+	}
+
+	//case3  - delete key from non-existing collection
+	err = stub.DelPrivateData("collection2", "key1")
+	if err == nil {
+		t.Fatalf("Delete should fail for not existing collection: collection2")
+	}
+}
+
 // TestMockMock clearly cheating for coverage... but not. Mock should
 // be tucked away under common/mocks package which is not
 // included for coverage. Moving mockstub to another package

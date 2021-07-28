@@ -206,7 +206,12 @@ func (stub *MockStub) PutPrivateData(collection string, key string, value []byte
 
 // DelPrivateData ...
 func (stub *MockStub) DelPrivateData(collection string, key string) error {
-	return errors.New("Not Implemented")
+	m, in := stub.PvtState[collection]
+	if !in {
+		return errors.New("The specified Private Collection was not found")
+	}
+	delete(m, key)
+	return nil
 }
 
 // GetPrivateDataByRange ...
