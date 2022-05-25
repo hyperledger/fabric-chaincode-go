@@ -258,6 +258,14 @@ func (s *ChaincodeStub) DelPrivateData(collection string, key string) error {
 	return s.handler.handleDelState(collection, key, s.ChannelID, s.TxID)
 }
 
+// PurgePrivateData documentation can be found in interfaces.go
+func (s *ChaincodeStub) PurgePrivateData(collection string, key string) error {
+	if collection == "" {
+		return fmt.Errorf("collection must not be an empty string")
+	}
+	return s.handler.handlePurgeState(collection, key, s.ChannelID, s.TxID)
+}
+
 // GetPrivateDataByRange documentation can be found in interfaces.go
 func (s *ChaincodeStub) GetPrivateDataByRange(collection, startKey, endKey string) (StateQueryIteratorInterface, error) {
 	if collection == "" {

@@ -306,6 +306,12 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				assert.NoError(t, err)
 				err = s.DelPrivateData("", "key")
 				assert.EqualError(t, err, "collection must not be an empty string")
+
+				err = s.PurgePrivateData("col", "key")
+				assert.NoError(t, err)
+				err = s.PurgePrivateData("", "key")
+				assert.EqualError(t, err, "collection must not be an empty string")
+
 			},
 		},
 		{
