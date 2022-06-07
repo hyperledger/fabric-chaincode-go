@@ -7,7 +7,7 @@ require (
 	github.com/golang/protobuf v1.3.2
 	github.com/hyperledger/fabric-protos-go v0.0.0-20190919234611-2a87503ac7c9
 	github.com/kr/pretty v0.1.0 // indirect
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.7.2
 	golang.org/x/net v0.0.0-20190522155817-f3200d17e092 // indirect
 	golang.org/x/sys v0.0.0-20190710143415-6ec70d6a5542 // indirect
 	google.golang.org/genproto v0.0.0-20180831171423-11092d34479b // indirect
