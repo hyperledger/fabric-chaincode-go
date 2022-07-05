@@ -304,7 +304,11 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 			}
 			conf, err := LoadConfig()
 			if test.errMsg == "" {
-				assert.Equal(t, test.expected, conf)
+				assert.EqualValues(t, test.expected.ChaincodeName, conf.ChaincodeName)
+				assert.Equal(t, test.expected.KaOpts, conf.KaOpts)
+				if test.expected.TLS != nil {
+					tlsConfigEquals(t, test.expected.TLS, conf.TLS)
+				}
 			} else {
 				assert.Contains(t, err.Error(), test.errMsg)
 			}
@@ -397,12 +401,17 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			tlsCfg, err := LoadTLSConfig(test.issrv, test.key, test.cert, test.rootCert)
 			if test.errMsg == "" {
-				assert.Equal(t, test.expected, tlsCfg)
+				tlsConfigEquals(t, test.expected, tlsCfg)
 			} else {
 				assert.Contains(t, err.Error(), test.errMsg)
 			}
 		})
 	}
+}
+
+func tlsConfigEquals(t *testing.T, cfg1 *tls.Config, cfg2 *tls.Config) {
+	assert.EqualValues(t, cfg1.MinVersion, cfg2.MinVersion)
+	assert.EqualValues(t, cfg1.ClientAuth, cfg2.ClientAuth)
 }
 
 func TestLoadPEMEncodedConfig(t *testing.T) {
@@ -560,7 +569,11 @@ func TestLoadPEMEncodedConfig(t *testing.T) {
 			}
 			conf, err := LoadConfig()
 			if test.errMsg == "" {
-				assert.Equal(t, test.expected, conf)
+				assert.EqualValues(t, test.expected.ChaincodeName, conf.ChaincodeName)
+				assert.Equal(t, test.expected.KaOpts, conf.KaOpts)
+				if test.expected.TLS != nil {
+					tlsConfigEquals(t, test.expected.TLS, conf.TLS)
+				}
 			} else {
 				assert.Contains(t, err.Error(), test.errMsg)
 			}

@@ -1,3 +1,4 @@
+//go:build tools
 // +build tools
 
 // Copyright the Hyperledger Fabric contributors. All rights reserved.
