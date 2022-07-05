@@ -1,0 +1,24 @@
+name: ${{ env.SourceBranchName }}-${{ env.Date:yyyyMMdd }}${{ env.Rev:.rrr }}
+
+on:
+  push:
+    branches:
+    - main
+    - release-*
+env:
+  branch: $[ coalesce(variables['system.PullRequest.TargetBranch'], variables['build.SourceBranchName']) ]
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 1
+        clean: true
+    - name: Install Tools
+      run: ci/scripts/install_tools.sh
+    - name: Vet and lint
+      run: ci/scripts/lint.sh
+    - name: Run tests
+      run: go test -race ./...
+                    
