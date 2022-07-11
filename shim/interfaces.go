@@ -268,6 +268,16 @@ type ChaincodeStubInterface interface {
 	// when the transaction is validated and successfully committed.
 	DelPrivateData(collection, key string) error
 
+	// PurgePrivateData records the specified `key` to be purged in the private writeset
+	// of the transaction. Note that only hash of the private writeset goes into the
+	// transaction proposal response (which is sent to the client who issued the
+	// transaction) and the actual private writeset gets temporarily stored in a
+	// transient store. The `key` and its value will be deleted from the collection
+	// when the transaction is validated and successfully committed, and will
+	// subsequently be completely removed from the private data store (that maintains
+	// the historical versions of private writesets) as a background operation.
+	PurgePrivateData(collection, key string) error
+
 	// SetPrivateDataValidationParameter sets the key-level endorsement policy
 	// for the private data specified by `key`.
 	SetPrivateDataValidationParameter(collection, key string, ep []byte) error
