@@ -681,7 +681,7 @@ func TestTLSClientWithChaincodeServer(t *testing.T) {
 			clientCert:     []byte(certPEM),
 			clientRootCert: []byte(rootPEM),
 			success:        false,
-			errMsg:         "all SubConns are in TransientFailure",
+			errMsg:         "rpc error: code = Unavailable desc = write tcp 127.0.0.1:[[:digit:]]{5}->127.0.0.1:[[:digit:]]{5}: write: broken pipe",
 			address:        "127.0.0.1:0",
 		},
 		{
@@ -689,7 +689,7 @@ func TestTLSClientWithChaincodeServer(t *testing.T) {
 			issrv:          true,
 			clientRootCert: []byte(rootPEM),
 			success:        false,
-			errMsg:         "all SubConns are in TransientFailure",
+			errMsg:         "rpc error: code = Unavailable desc = write tcp 127.0.0.1:[[:digit:]]{5}->127.0.0.1:[[:digit:]]{5}: write: broken pipe",
 			address:        "127.0.0.1:0",
 		},
 	}
