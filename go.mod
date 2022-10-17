@@ -6,7 +6,7 @@ require (
 	github.com/golang/protobuf v1.5.2
 	github.com/hyperledger/fabric-protos-go v0.0.0-20220613214546-bf864f01d75e
 	github.com/stretchr/testify v1.8.0
-	google.golang.org/grpc v1.48.0
+	google.golang.org/grpc v1.50.1
 )
 
 require (
