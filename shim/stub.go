@@ -441,12 +441,12 @@ func (s *ChaincodeStub) GetHistoryForKey(key string) (HistoryQueryIteratorInterf
 	return &HistoryQueryIterator{CommonIterator: &CommonIterator{s.handler, s.ChannelID, s.TxID, response, 0}}, nil
 }
 
-//CreateCompositeKey documentation can be found in interfaces.go
+// CreateCompositeKey documentation can be found in interfaces.go
 func (s *ChaincodeStub) CreateCompositeKey(objectType string, attributes []string) (string, error) {
 	return CreateCompositeKey(objectType, attributes)
 }
 
-//SplitCompositeKey documentation can be found in interfaces.go
+// SplitCompositeKey documentation can be found in interfaces.go
 func (s *ChaincodeStub) SplitCompositeKey(compositeKey string) (string, []string, error) {
 	return splitCompositeKey(compositeKey)
 }
@@ -491,10 +491,10 @@ func validateCompositeKeyAttribute(str string) error {
 	return nil
 }
 
-//To ensure that simple keys do not go into composite key namespace,
-//we validate simplekey to check whether the key starts with 0x00 (which
-//is the namespace for compositeKey). This helps in avoding simple/composite
-//key collisions.
+// To ensure that simple keys do not go into composite key namespace,
+// we validate simplekey to check whether the key starts with 0x00 (which
+// is the namespace for compositeKey). This helps in avoding simple/composite
+// key collisions.
 func validateSimpleKeys(simpleKeys ...string) error {
 	for _, key := range simpleKeys {
 		if len(key) > 0 && key[0] == compositeKeyNamespace[0] {
@@ -504,7 +504,7 @@ func validateSimpleKeys(simpleKeys ...string) error {
 	return nil
 }
 
-//GetStateByPartialCompositeKey documentation can be found in interfaces.go
+// GetStateByPartialCompositeKey documentation can be found in interfaces.go
 func (s *ChaincodeStub) GetStateByPartialCompositeKey(objectType string, attributes []string) (StateQueryIteratorInterface, error) {
 	collection := ""
 	startKey, endKey, err := s.createRangeKeysForPartialCompositeKey(objectType, attributes)

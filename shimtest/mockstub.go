@@ -300,10 +300,10 @@ func (stub *MockStub) GetStateByRange(startKey, endKey string) (shim.StateQueryI
 	return NewMockStateRangeQueryIterator(stub, startKey, endKey), nil
 }
 
-//To ensure that simple keys do not go into composite key namespace,
-//we validate simplekey to check whether the key starts with 0x00 (which
-//is the namespace for compositeKey). This helps in avoding simple/composite
-//key collisions.
+// To ensure that simple keys do not go into composite key namespace,
+// we validate simplekey to check whether the key starts with 0x00 (which
+// is the namespace for compositeKey). This helps in avoding simple/composite
+// key collisions.
 func validateSimpleKeys(simpleKeys ...string) error {
 	for _, key := range simpleKeys {
 		if len(key) > 0 && key[0] == compositeKeyNamespace[0] {

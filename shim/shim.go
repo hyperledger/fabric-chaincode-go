@@ -28,14 +28,14 @@ const (
 // peer as server
 var peerAddress = flag.String("peer.address", "", "peer address")
 
-//this separates the chaincode stream interface establishment
-//so we can replace it with a mock peer stream
+// this separates the chaincode stream interface establishment
+// so we can replace it with a mock peer stream
 type peerStreamGetter func(name string) (ClientStream, error)
 
-//UTs to setup mock peer stream getter
+// UTs to setup mock peer stream getter
 var streamGetter peerStreamGetter
 
-//the non-mock user CC stream establishment func
+// the non-mock user CC stream establishment func
 func userChaincodeStreamGetter(name string) (ClientStream, error) {
 	if *peerAddress == "" {
 		return nil, errors.New("flag 'peer.address' must be set")
