@@ -671,7 +671,7 @@ func TestTLSClientWithChaincodeServer(t *testing.T) {
 			clientCert:     []byte(clientCertPEM),
 			clientRootCert: []byte(clientRootPEM),
 			success:        false,
-			errMsg:         "transport: authentication handshake failed: x509: certificate signed by unknown authority",
+			errMsg:         "transport: authentication handshake failed: tls: failed to verify certificate: x509: certificate signed by unknown authority",
 			address:        "127.0.0.1:0",
 		},
 		{
