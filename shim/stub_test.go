@@ -9,15 +9,14 @@ import (
 	"os"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-chaincode-go/shim/internal/mock"
-	"github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/ledger/queryresult"
-	peerpb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/ledger/queryresult"
+	peerpb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
+	"google.golang.org/protobuf/proto"
 
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/stretchr/testify/assert"
+	timestamp "google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func toChaincodeArgs(args ...string) [][]byte {
@@ -193,7 +192,7 @@ func TestChaincodeStubAccessors(t *testing.T) {
 }
 
 func TestChaincodeStubGetTxTimestamp(t *testing.T) {
-	now := ptypes.TimestampNow()
+	now := timestamp.Now()
 	tests := []struct {
 		proposal    *peerpb.Proposal
 		ts          *timestamp.Timestamp
