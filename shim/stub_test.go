@@ -14,9 +14,11 @@ import (
 	"github.com/hyperledger/fabric-protos-go-apiv2/ledger/queryresult"
 	peerpb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	timestamp "google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/stretchr/testify/assert"
-	timestamp "google.golang.org/protobuf/types/known/timestamppb"
+	"github.com/stretchr/testify/require"
 )
 
 func toChaincodeArgs(args ...string) [][]byte {
@@ -25,6 +27,10 @@ func toChaincodeArgs(args ...string) [][]byte {
 		ccArgs[i] = []byte(a)
 	}
 	return ccArgs
+}
+
+func AssertProtoEqual(t *testing.T, expected protoreflect.ProtoMessage, actual protoreflect.ProtoMessage) {
+	require.True(t, proto.Equal(expected, actual), "Expected %v, got %v", expected, actual)
 }
 
 func TestNewChaincodeStub(t *testing.T) {
@@ -60,7 +66,7 @@ func TestNewChaincodeStub(t *testing.T) {
 		{signedProposal: proto.Clone(validSignedProposal).(*peerpb.SignedProposal)},
 		{
 			signedProposal: &peerpb.SignedProposal{ProposalBytes: []byte("garbage")},
-			expectedErr:    "failed to extract Proposal from SignedProposal: proto: cannot parse invalid wire-format data",
+			expectedErr:    "failed to extract Proposal from SignedProposal: proto:\u00a0cannot parse invalid wire-format data", // the Unmarshal error in the newChaincodeStub function contains a "U+00A0 No-Break Space commonly abbreviated as NBSP"
 		},
 		{
 			signedProposal: &peerpb.SignedProposal{},
@@ -118,7 +124,7 @@ func TestNewChaincodeStub(t *testing.T) {
 		prop := &peerpb.Proposal{}
 		err = proto.Unmarshal(tt.signedProposal.ProposalBytes, prop)
 		assert.NoError(t, err)
-		assert.Equal(t, prop, stub.proposal)
+		AssertProtoEqual(t, prop, stub.proposal)
 
 		assert.Equal(t, expectedCreator, stub.creator)
 		assert.Equal(t, expectedTransient, stub.transient)
@@ -214,11 +220,11 @@ func TestChaincodeStubGetTxTimestamp(t *testing.T) {
 					ChannelHeader: []byte("garbage-channel-header"),
 				}),
 			},
-			expectedErr: "error unmarshaling ChannelHeader: proto: cannot parse invalid wire-format data",
+			expectedErr: "error unmarshaling ChannelHeader: proto:\u00a0cannot parse invalid wire-format data", // the Unmarshal error in the GetTxTimestamp function contains a "U+00A0 No-Break Space commonly abbreviated as NBSP"
 		},
 		{
 			proposal:    &peerpb.Proposal{Header: []byte("garbage-header")},
-			expectedErr: "error unmarshaling Header: proto: cannot parse invalid wire-format data",
+			expectedErr: "error unmarshaling Header: proto:\u00a0cannot parse invalid wire-format data", // the Unmarshal error in the GetTxTimestamp function contains a "U+00A0 No-Break Space commonly abbreviated as NBSP"
 		},
 	}
 
@@ -392,13 +398,13 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				// stub stuff
 				sqi, err := s.GetQueryResult("query")
 				if err != nil {
-					t.Fatalf("Unexpected error for GetQueryResult: %s", err)
+					t.Fatalf("Unexpected error for GetQueryResult: %s", "err")
 				}
 				kv, err := sqi.Next()
 				if err != nil {
-					t.Fatalf("Unexpected error for GetQueryResult: %s", err)
+					t.Fatalf("Unexpected error for GetQueryResult: %s", "err")
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 
 				sqi, err = s.GetPrivateDataQueryResult("col", "query")
 				if err != nil {
@@ -408,7 +414,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetPrivateDataQueryResult: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 
 				_, err = s.GetPrivateDataQueryResult("", "query")
 				assert.EqualError(t, err, "collection must not be an empty string")
@@ -422,14 +428,14 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetStateByRange: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 				// second result
 				assert.True(t, sqi.HasNext())
 				kv, err = sqi.Next()
 				if err != nil {
 					t.Fatalf("Unexpected error for GetStateByRange: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 				err = sqi.Close()
 				assert.NoError(t, err)
 
@@ -438,7 +444,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetStateByRangeWithPagination: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 				assert.Equal(t, "book", qrm.GetBookmark())
 				assert.Equal(t, int32(1), qrm.GetFetchedRecordsCount())
 
@@ -450,7 +456,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetPrivateDataByRange: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 
 				_, err = s.GetPrivateDataByRange("", "", "end")
 				assert.EqualError(t, err, "collection must not be an empty string")
@@ -460,14 +466,14 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetStateByPartialCompositeKey: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 
 				sqi, err = s.GetPrivateDataByPartialCompositeKey("col", "object", []string{"attr1", "attr2"})
 				kv, err = sqi.Next()
 				if err != nil {
 					t.Fatalf("Unexpected error for GetPrivateDataByPartialCompositeKey: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 
 				_, err = s.GetPrivateDataByPartialCompositeKey("", "object", []string{"attr1", "attr2"})
 				assert.EqualError(t, err, "collection must not be an empty string")
@@ -482,7 +488,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetStateByPartialCompositeKeyWithPagination: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 				assert.Equal(t, "book", qrm.GetBookmark())
 				assert.Equal(t, int32(1), qrm.GetFetchedRecordsCount())
 
@@ -491,7 +497,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error forGetQueryResultWithPagination: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 				assert.Equal(t, "book", qrm.GetBookmark())
 				assert.Equal(t, int32(1), qrm.GetFetchedRecordsCount())
 			},
@@ -527,7 +533,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetPrivateDataByRangee: %s", err)
 				}
-				assert.Equal(t, expectedResult, km)
+				AssertProtoEqual(t, expectedResult, km)
 				assert.False(t, hqi.HasNext())
 			},
 		},
@@ -573,7 +579,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
+			// t.Parallel()
 
 			handler := &Handler{
 				cc:               &mockChaincode{},
