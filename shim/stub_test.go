@@ -9,15 +9,17 @@ import (
 	"os"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-chaincode-go/shim/internal/mock"
-	"github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/ledger/queryresult"
-	peerpb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/ledger/queryresult"
+	peerpb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/timestamp"
+	timestamp "google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func toChaincodeArgs(args ...string) [][]byte {
@@ -26,6 +28,10 @@ func toChaincodeArgs(args ...string) [][]byte {
 		ccArgs[i] = []byte(a)
 	}
 	return ccArgs
+}
+
+func AssertProtoEqual(t *testing.T, expected protoreflect.ProtoMessage, actual protoreflect.ProtoMessage) {
+	require.True(t, proto.Equal(expected, actual), "Expected %v, got %v", expected, actual)
 }
 
 func TestNewChaincodeStub(t *testing.T) {
@@ -119,7 +125,7 @@ func TestNewChaincodeStub(t *testing.T) {
 		prop := &peerpb.Proposal{}
 		err = proto.Unmarshal(tt.signedProposal.ProposalBytes, prop)
 		assert.NoError(t, err)
-		assert.Equal(t, prop, stub.proposal)
+		AssertProtoEqual(t, prop, stub.proposal)
 
 		assert.Equal(t, expectedCreator, stub.creator)
 		assert.Equal(t, expectedTransient, stub.transient)
@@ -193,7 +199,7 @@ func TestChaincodeStubAccessors(t *testing.T) {
 }
 
 func TestChaincodeStubGetTxTimestamp(t *testing.T) {
-	now := ptypes.TimestampNow()
+	now := timestamp.Now()
 	tests := []struct {
 		proposal    *peerpb.Proposal
 		ts          *timestamp.Timestamp
@@ -399,7 +405,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetQueryResult: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 
 				sqi, err = s.GetPrivateDataQueryResult("col", "query")
 				if err != nil {
@@ -409,7 +415,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetPrivateDataQueryResult: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 
 				_, err = s.GetPrivateDataQueryResult("", "query")
 				assert.EqualError(t, err, "collection must not be an empty string")
@@ -423,14 +429,14 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetStateByRange: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 				// second result
 				assert.True(t, sqi.HasNext())
 				kv, err = sqi.Next()
 				if err != nil {
 					t.Fatalf("Unexpected error for GetStateByRange: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 				err = sqi.Close()
 				assert.NoError(t, err)
 
@@ -439,7 +445,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetStateByRangeWithPagination: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 				assert.Equal(t, "book", qrm.GetBookmark())
 				assert.Equal(t, int32(1), qrm.GetFetchedRecordsCount())
 
@@ -451,7 +457,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetPrivateDataByRange: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 
 				_, err = s.GetPrivateDataByRange("", "", "end")
 				assert.EqualError(t, err, "collection must not be an empty string")
@@ -461,14 +467,14 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetStateByPartialCompositeKey: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 
 				sqi, err = s.GetPrivateDataByPartialCompositeKey("col", "object", []string{"attr1", "attr2"})
 				kv, err = sqi.Next()
 				if err != nil {
 					t.Fatalf("Unexpected error for GetPrivateDataByPartialCompositeKey: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 
 				_, err = s.GetPrivateDataByPartialCompositeKey("", "object", []string{"attr1", "attr2"})
 				assert.EqualError(t, err, "collection must not be an empty string")
@@ -483,7 +489,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetStateByPartialCompositeKeyWithPagination: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 				assert.Equal(t, "book", qrm.GetBookmark())
 				assert.Equal(t, int32(1), qrm.GetFetchedRecordsCount())
 
@@ -492,7 +498,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error forGetQueryResultWithPagination: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				AssertProtoEqual(t, expectedResult, kv)
 				assert.Equal(t, "book", qrm.GetBookmark())
 				assert.Equal(t, int32(1), qrm.GetFetchedRecordsCount())
 			},
@@ -528,7 +534,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetPrivateDataByRangee: %s", err)
 				}
-				assert.Equal(t, expectedResult, km)
+				AssertProtoEqual(t, expectedResult, km)
 				assert.False(t, hqi.HasNext())
 			},
 		},

@@ -16,12 +16,11 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/hyperledger/fabric-chaincode-go/shim"
-	"github.com/hyperledger/fabric-protos-go/ledger/queryresult"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/ledger/queryresult"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
+	"google.golang.org/protobuf/proto"
+	timestamp "google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -121,7 +120,7 @@ func (stub *MockStub) GetFunctionAndParameters() (function string, params []stri
 func (stub *MockStub) MockTransactionStart(txid string) {
 	stub.TxID = txid
 	stub.setSignedProposal(&pb.SignedProposal{})
-	stub.setTxTimestamp(ptypes.TimestampNow())
+	stub.setTxTimestamp(timestamp.Now())
 }
 
 // MockTransactionEnd End a mocked transaction, clearing the UUID.
