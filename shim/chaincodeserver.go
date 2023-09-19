@@ -8,7 +8,7 @@ import (
 	"errors"
 
 	"github.com/hyperledger/fabric-chaincode-go/shim/internal"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
 
 	"google.golang.org/grpc/keepalive"
 )

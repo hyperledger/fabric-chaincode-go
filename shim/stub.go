@@ -11,11 +11,11 @@ import (
 	"os"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/ledger/queryresult"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/ledger/queryresult"
+	pb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
+	"google.golang.org/protobuf/proto"
+	timestamp "google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // ChaincodeStub is an object passed to chaincode for shim side handling of
@@ -148,7 +148,7 @@ func GetMSPID() (string, error) {
 // ------------- Call Chaincode functions ---------------
 
 // InvokeChaincode documentation can be found in interfaces.go
-func (s *ChaincodeStub) InvokeChaincode(chaincodeName string, args [][]byte, channel string) pb.Response {
+func (s *ChaincodeStub) InvokeChaincode(chaincodeName string, args [][]byte, channel string) *pb.Response {
 	// Internally we handle chaincode name as a composite name
 	if channel != "" {
 		chaincodeName = chaincodeName + "/" + channel
