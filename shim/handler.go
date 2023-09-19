@@ -52,7 +52,7 @@ type Handler struct {
 	// need lock to protect chaincode from attempting
 	// concurrent requests to the peer
 	responseChannelsMutex sync.Mutex
-	responseChannels      map[string]chan pb.ChaincodeMessage
+	responseChannels      map[string]chan *pb.ChaincodeMessage
 }
 
 func shorttxid(txid string) string {
@@ -85,7 +85,7 @@ func transactionContextID(chainID, txid string) string {
 	return chainID + txid
 }
 
-func (h *Handler) createResponseChannel(channelID, txid string) (<-chan pb.ChaincodeMessage, error) {
+func (h *Handler) createResponseChannel(channelID, txid string) (<-chan *pb.ChaincodeMessage, error) {
 	h.responseChannelsMutex.Lock()
 	defer h.responseChannelsMutex.Unlock()
 
@@ -98,7 +98,7 @@ func (h *Handler) createResponseChannel(channelID, txid string) (<-chan pb.Chain
 		return nil, fmt.Errorf("[%s] channel exists", shorttxid(txCtxID))
 	}
 
-	responseChan := make(chan pb.ChaincodeMessage)
+	responseChan := make(chan *pb.ChaincodeMessage)
 	h.responseChannels[txCtxID] = responseChan
 	return responseChan, nil
 }
@@ -125,7 +125,7 @@ func (h *Handler) handleResponse(msg *pb.ChaincodeMessage) error {
 	if responseCh == nil {
 		return fmt.Errorf("[%s] responseChannel does not exist", shorttxid(msg.Txid))
 	}
-	responseCh <- *msg
+	responseCh <- msg
 	return nil
 }
 
@@ -133,10 +133,10 @@ func (h *Handler) handleResponse(msg *pb.ChaincodeMessage) error {
 // the provided responseChan. On success, the response message will be
 // returned. An error will be returned msg was not successfully sent to the
 // peer.
-func (h *Handler) sendReceive(msg *pb.ChaincodeMessage, responseChan <-chan pb.ChaincodeMessage) (pb.ChaincodeMessage, error) {
+func (h *Handler) sendReceive(msg *pb.ChaincodeMessage, responseChan <-chan *pb.ChaincodeMessage) (*pb.ChaincodeMessage, error) {
 	err := h.serialSend(msg)
 	if err != nil {
-		return pb.ChaincodeMessage{}, err
+		return &pb.ChaincodeMessage{}, err
 	}
 
 	outmsg := <-responseChan
@@ -148,7 +148,7 @@ func newChaincodeHandler(peerChatStream PeerChaincodeStream, chaincode Chaincode
 	return &Handler{
 		chatStream:       peerChatStream,
 		cc:               chaincode,
-		responseChannels: map[string]chan pb.ChaincodeMessage{},
+		responseChannels: map[string]chan *pb.ChaincodeMessage{},
 		state:            created,
 	}
 }
@@ -183,7 +183,7 @@ func (h *Handler) handleInit(msg *pb.ChaincodeMessage) (*pb.ChaincodeMessage, er
 		return &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_ERROR, Payload: []byte(res.Message), Txid: msg.Txid, ChaincodeEvent: stub.chaincodeEvent, ChannelId: msg.ChannelId}, nil
 	}
 
-	resBytes, err := proto.Marshal(&res)
+	resBytes, err := proto.Marshal(res)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %s", err)
 	}
@@ -201,15 +201,15 @@ func (h *Handler) handleTransaction(msg *pb.ChaincodeMessage) (*pb.ChaincodeMess
 	}
 
 	// Create the ChaincodeStub which the chaincode can use to callback
-	stub, err := newChaincodeStub(h, msg.ChannelId, msg.Txid, input, msg.Proposal)
+	stubs, err := newChaincodeStub(h, msg.ChannelId, msg.Txid, input, msg.Proposal)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new ChaincodeStub: %s", err)
 	}
-
+	stub := stubs
 	res := h.cc.Invoke(stub)
 
 	// Endorser will handle error contained in Response.
-	resBytes, err := proto.Marshal(&res)
+	resBytes, err := proto.Marshal(res)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %s", err)
 	}
@@ -219,11 +219,11 @@ func (h *Handler) handleTransaction(msg *pb.ChaincodeMessage) (*pb.ChaincodeMess
 
 // callPeerWithChaincodeMsg sends a chaincode message to the peer for the given
 // txid and channel and receives the response.
-func (h *Handler) callPeerWithChaincodeMsg(msg *pb.ChaincodeMessage, channelID, txid string) (pb.ChaincodeMessage, error) {
+func (h *Handler) callPeerWithChaincodeMsg(msg *pb.ChaincodeMessage, channelID, txid string) (*pb.ChaincodeMessage, error) {
 	// Create the channel on which to communicate the response from the peer
 	respChan, err := h.createResponseChannel(channelID, txid)
 	if err != nil {
-		return pb.ChaincodeMessage{}, err
+		return &pb.ChaincodeMessage{}, err
 	}
 	defer h.deleteResponseChannel(channelID, txid)
 
@@ -292,7 +292,7 @@ func (h *Handler) handleGetStateMetadata(collection string, key string, channelI
 		var mdResult pb.StateMetadataResult
 		err := proto.Unmarshal(responseMsg.Payload, &mdResult)
 		if err != nil {
-			return nil, errors.New("Could not unmarshal metadata response")
+			return nil, errors.New("could not unmarshal metadata response")
 		}
 		metadata := make(map[string][]byte)
 		for _, md := range mdResult.Entries {
@@ -451,7 +451,7 @@ func (h *Handler) handleQueryStateNext(id, channelID, txid string) (*pb.QueryRes
 
 	msg := &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_QUERY_STATE_NEXT, Payload: payloadBytes, Txid: txid, ChannelId: channelID}
 
-	var responseMsg pb.ChaincodeMessage
+	var responseMsg *pb.ChaincodeMessage
 
 	if responseMsg, err = h.sendReceive(msg, respChan); err != nil {
 		return nil, fmt.Errorf("[%s] error sending %s", shorttxid(msg.Txid), pb.ChaincodeMessage_QUERY_STATE_NEXT)
@@ -488,7 +488,7 @@ func (h *Handler) handleQueryStateClose(id, channelID, txid string) (*pb.QueryRe
 
 	msg := &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_QUERY_STATE_CLOSE, Payload: payloadBytes, Txid: txid, ChannelId: channelID}
 
-	var responseMsg pb.ChaincodeMessage
+	var responseMsg *pb.ChaincodeMessage
 
 	if responseMsg, err = h.sendReceive(msg, respChan); err != nil {
 		return nil, fmt.Errorf("[%s] error sending %s", shorttxid(msg.Txid), pb.ChaincodeMessage_QUERY_STATE_CLOSE)
@@ -552,7 +552,7 @@ func (h *Handler) handleGetHistoryForKey(key string, channelID string, txid stri
 	payloadBytes := marshalOrPanic(&pb.GetHistoryForKey{Key: key})
 
 	msg := &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_GET_HISTORY_FOR_KEY, Payload: payloadBytes, Txid: txid, ChannelId: channelID}
-	var responseMsg pb.ChaincodeMessage
+	var responseMsg *pb.ChaincodeMessage
 
 	if responseMsg, err = h.sendReceive(msg, respChan); err != nil {
 		return nil, fmt.Errorf("[%s] error sending %s", shorttxid(msg.Txid), pb.ChaincodeMessage_GET_HISTORY_FOR_KEY)
@@ -576,12 +576,12 @@ func (h *Handler) handleGetHistoryForKey(key string, channelID string, txid stri
 	return nil, fmt.Errorf("incorrect chaincode message %s received. Expecting %s or %s", responseMsg.Type, pb.ChaincodeMessage_RESPONSE, pb.ChaincodeMessage_ERROR)
 }
 
-func (h *Handler) createResponse(status int32, payload []byte) pb.Response {
-	return pb.Response{Status: status, Payload: payload}
+func (h *Handler) createResponse(status int32, payload []byte) *pb.Response {
+	return &pb.Response{Status: status, Payload: payload}
 }
 
 // handleInvokeChaincode communicates with the peer to invoke another chaincode.
-func (h *Handler) handleInvokeChaincode(chaincodeName string, args [][]byte, channelID string, txid string) pb.Response {
+func (h *Handler) handleInvokeChaincode(chaincodeName string, args [][]byte, channelID string, txid string) *pb.Response {
 	payloadBytes := marshalOrPanic(&pb.ChaincodeSpec{ChaincodeId: &pb.ChaincodeID{Name: chaincodeName}, Input: &pb.ChaincodeInput{Args: args}})
 
 	// Create the channel on which to communicate the response from validating peer
@@ -594,7 +594,7 @@ func (h *Handler) handleInvokeChaincode(chaincodeName string, args [][]byte, cha
 	// Send INVOKE_CHAINCODE message to peer chaincode support
 	msg := &pb.ChaincodeMessage{Type: pb.ChaincodeMessage_INVOKE_CHAINCODE, Payload: payloadBytes, Txid: txid, ChannelId: channelID}
 
-	var responseMsg pb.ChaincodeMessage
+	var responseMsg *pb.ChaincodeMessage
 
 	if responseMsg, err = h.sendReceive(msg, respChan); err != nil {
 		errStr := fmt.Sprintf("[%s] error sending %s", shorttxid(msg.Txid), pb.ChaincodeMessage_INVOKE_CHAINCODE)
@@ -609,11 +609,11 @@ func (h *Handler) handleInvokeChaincode(chaincodeName string, args [][]byte, cha
 		}
 		if respMsg.Type == pb.ChaincodeMessage_COMPLETED {
 			// Success response
-			res := &pb.Response{}
-			if err = proto.Unmarshal(respMsg.Payload, res); err != nil {
+			res := pb.Response{}
+			if err = proto.Unmarshal(respMsg.Payload, &res); err != nil {
 				return h.createResponse(ERROR, []byte(err.Error()))
 			}
-			return *res
+			return &res
 		}
 		return h.createResponse(ERROR, responseMsg.Payload)
 	}

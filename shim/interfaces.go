@@ -15,12 +15,12 @@ type Chaincode interface {
 	// Init is called during Instantiate transaction after the chaincode container
 	// has been established for the first time, allowing the chaincode to
 	// initialize its internal data
-	Init(stub ChaincodeStubInterface) pb.Response
+	Init(stub ChaincodeStubInterface) *pb.Response
 
 	// Invoke is called to update or query the ledger in a proposal transaction.
 	// Updated state variables are not committed to the ledger until the
 	// transaction is committed.
-	Invoke(stub ChaincodeStubInterface) pb.Response
+	Invoke(stub ChaincodeStubInterface) *pb.Response
 }
 
 // ChaincodeStubInterface is used by deployable chaincode apps to access and
@@ -71,7 +71,7 @@ type ChaincodeStubInterface interface {
 	// the called chaincode on a different channel is a `Query`, which does not
 	// participate in state validation checks in subsequent commit phase.
 	// If `channel` is empty, the caller's channel is assumed.
-	InvokeChaincode(chaincodeName string, args [][]byte, channel string) pb.Response
+	InvokeChaincode(chaincodeName string, args [][]byte, channel string) *pb.Response
 
 	// GetState returns the value of the specified `key` from the
 	// ledger. Note that GetState doesn't read data from the writeset, which

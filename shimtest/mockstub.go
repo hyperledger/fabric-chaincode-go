@@ -142,7 +142,7 @@ func (stub *MockStub) MockPeerChaincode(invokableChaincodeName string, otherStub
 }
 
 // MockInit Initialise this chaincode,  also starts and ends a transaction.
-func (stub *MockStub) MockInit(uuid string, args [][]byte) pb.Response {
+func (stub *MockStub) MockInit(uuid string, args [][]byte) *pb.Response {
 	stub.args = args
 	stub.MockTransactionStart(uuid)
 	res := stub.cc.Init(stub)
@@ -151,7 +151,7 @@ func (stub *MockStub) MockInit(uuid string, args [][]byte) pb.Response {
 }
 
 // MockInvoke Invoke this chaincode, also starts and ends a transaction.
-func (stub *MockStub) MockInvoke(uuid string, args [][]byte) pb.Response {
+func (stub *MockStub) MockInvoke(uuid string, args [][]byte) *pb.Response {
 	stub.args = args
 	stub.MockTransactionStart(uuid)
 	res := stub.cc.Invoke(stub)
@@ -165,7 +165,7 @@ func (stub *MockStub) GetDecorations() map[string][]byte {
 }
 
 // MockInvokeWithSignedProposal Invoke this chaincode, also starts and ends a transaction.
-func (stub *MockStub) MockInvokeWithSignedProposal(uuid string, args [][]byte, sp *pb.SignedProposal) pb.Response {
+func (stub *MockStub) MockInvokeWithSignedProposal(uuid string, args [][]byte, sp *pb.SignedProposal) *pb.Response {
 	stub.args = args
 	stub.MockTransactionStart(uuid)
 	stub.signedProposal = sp
@@ -390,7 +390,7 @@ func (stub *MockStub) GetQueryResultWithPagination(query string, pageSize int32,
 // E.g. stub1.InvokeChaincode("othercc", funcArgs, channel)
 // Before calling this make sure to create another MockStub stub2, call shim.NewMockStub("othercc", Chaincode)
 // and register it with stub1 by calling stub1.MockPeerChaincode("othercc", stub2, channel)
-func (stub *MockStub) InvokeChaincode(chaincodeName string, args [][]byte, channel string) pb.Response {
+func (stub *MockStub) InvokeChaincode(chaincodeName string, args [][]byte, channel string) *pb.Response {
 	// Internally we use chaincode name as a composite name
 	if channel != "" {
 		chaincodeName = chaincodeName + "/" + channel

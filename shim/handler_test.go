@@ -27,12 +27,12 @@ type mockChaincode struct {
 	invokeCalled bool
 }
 
-func (mcc *mockChaincode) Init(stub ChaincodeStubInterface) peerpb.Response {
+func (mcc *mockChaincode) Init(stub ChaincodeStubInterface) *peerpb.Response {
 	mcc.initCalled = true
 	return Success(nil)
 }
 
-func (mcc *mockChaincode) Invoke(stub ChaincodeStubInterface) peerpb.Response {
+func (mcc *mockChaincode) Invoke(stub ChaincodeStubInterface) *peerpb.Response {
 	mcc.invokeCalled = true
 	return Success(nil)
 }
@@ -46,7 +46,7 @@ func TestNewHandler_CreatedState(t *testing.T) {
 	expected := &Handler{
 		chatStream:       chatStream,
 		cc:               cc,
-		responseChannels: map[string]chan peerpb.ChaincodeMessage{},
+		responseChannels: map[string]chan *peerpb.ChaincodeMessage{},
 		state:            created,
 	}
 
@@ -210,7 +210,7 @@ func TestHandleMessage(t *testing.T) {
 			handler := &Handler{
 				chatStream:       chatStream,
 				cc:               cc,
-				responseChannels: map[string]chan peerpb.ChaincodeMessage{},
+				responseChannels: map[string]chan *peerpb.ChaincodeMessage{},
 				state:            ready,
 			}
 
@@ -234,7 +234,7 @@ func TestHandlePeerCalls(t *testing.T) {
 	payload := []byte("error")
 	h := &Handler{
 		cc:               &mockChaincode{},
-		responseChannels: map[string]chan peerpb.ChaincodeMessage{},
+		responseChannels: map[string]chan *peerpb.ChaincodeMessage{},
 		state:            ready,
 	}
 	chatStream := &mock.PeerChaincodeStream{}

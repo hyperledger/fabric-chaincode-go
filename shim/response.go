@@ -20,8 +20,8 @@ const (
 )
 
 // Success ...
-func Success(payload []byte) pb.Response {
-	return pb.Response{
+func Success(payload []byte) *pb.Response {
+	return &pb.Response{
 		Status:  OK,
 		Payload: payload,
 	}

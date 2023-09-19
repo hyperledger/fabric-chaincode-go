@@ -148,7 +148,7 @@ func GetMSPID() (string, error) {
 // ------------- Call Chaincode functions ---------------
 
 // InvokeChaincode documentation can be found in interfaces.go
-func (s *ChaincodeStub) InvokeChaincode(chaincodeName string, args [][]byte, channel string) pb.Response {
+func (s *ChaincodeStub) InvokeChaincode(chaincodeName string, args [][]byte, channel string) *pb.Response {
 	// Internally we handle chaincode name as a composite name
 	if channel != "" {
 		chaincodeName = chaincodeName + "/" + channel

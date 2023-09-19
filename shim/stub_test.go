@@ -584,7 +584,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 
 			handler := &Handler{
 				cc:               &mockChaincode{},
-				responseChannels: map[string]chan peerpb.ChaincodeMessage{},
+				responseChannels: map[string]chan *peerpb.ChaincodeMessage{},
 				state:            ready,
 			}
 			stub := &ChaincodeStub{
