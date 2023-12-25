@@ -7,8 +7,8 @@ github.com/golang/protobuf v1.5.3 h1:KhyjKVUg7Usr/dYsdSqoFveMYd5ko72D+zANwlG1mmg
 github.com/golang/protobuf v1.5.3/go.mod h1:XVQd3VNwM+JqD3oG2Ue2ip4fOMUkwXdXDdiuN0vRsmY=
 github.com/google/go-cmp v0.5.5/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
 github.com/google/go-cmp v0.5.9 h1:O2Tfq5qg4qc4AmwVlvv0oLiVAGB7enBSJ2x2DqQFi38=
-github.com/hyperledger/fabric-protos-go v0.3.0 h1:MXxy44WTMENOh5TI8+PCK2x6pMj47Go2vFRKDHB2PZs=
-github.com/hyperledger/fabric-protos-go v0.3.0/go.mod h1:WWnyWP40P2roPmmvxsUXSvVI/CF6vwY1K1UFidnKBys=
+github.com/hyperledger/fabric-protos-go v0.3.2 h1:mQmbHw3lyDV2+W5b0FitV/SjM4LLDjMTQJWW9taitDM=
+github.com/hyperledger/fabric-protos-go v0.3.2/go.mod h1:WWnyWP40P2roPmmvxsUXSvVI/CF6vwY1K1UFidnKBys=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pretty v0.2.1/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfnI=
 github.com/kr/pretty v0.3.0 h1:WgNl7dwNpEZ6jJ9k1snq4pZsg7DOEN8hP9Xw0Tsjwk0=
