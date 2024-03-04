@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/golang/protobuf v1.5.3
 	github.com/hyperledger/fabric-protos-go v0.3.0
-	github.com/stretchr/testify v1.8.2
+	github.com/stretchr/testify v1.9.0
 	google.golang.org/grpc v1.54.0
 )
 
