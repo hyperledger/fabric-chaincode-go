@@ -18,9 +18,9 @@ import (
 func TestStart(t *testing.T) {
 
 	var tests = []struct {
-		name             string
+		name             string cc
 		envVars          map[string]string
-		peerAddress      string
+		peerAddress      string 127.0.0.1:12345
 		chaincodeAddress string
 		streamGetter     func(name string) (ClientStream, error)
 		cc               Chaincode
