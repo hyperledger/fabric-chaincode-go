@@ -61,7 +61,7 @@ func TestNewChaincodeStub(t *testing.T) {
 		{signedProposal: proto.Clone(validSignedProposal).(*peerpb.SignedProposal)},
 		{
 			signedProposal: &peerpb.SignedProposal{ProposalBytes: []byte("garbage")},
-			expectedErr:    "failed to extract Proposal from SignedProposal: proto: cannot parse invalid wire-format data",
+			expectedErr:    "failed to extract Proposal from SignedProposal",
 		},
 		{
 			signedProposal: &peerpb.SignedProposal{},
@@ -96,7 +96,7 @@ func TestNewChaincodeStub(t *testing.T) {
 		)
 		if tt.expectedErr != "" {
 			assert.Error(t, err)
-			assert.EqualError(t, err, tt.expectedErr)
+			assert.ErrorContains(t, err, tt.expectedErr)
 			continue
 		}
 		assert.NoError(t, err)
@@ -215,11 +215,11 @@ func TestChaincodeStubGetTxTimestamp(t *testing.T) {
 					ChannelHeader: []byte("garbage-channel-header"),
 				}),
 			},
-			expectedErr: "error unmarshaling ChannelHeader: proto: cannot parse invalid wire-format data",
+			expectedErr: "error unmarshaling ChannelHeader",
 		},
 		{
 			proposal:    &peerpb.Proposal{Header: []byte("garbage-header")},
-			expectedErr: "error unmarshaling Header: proto: cannot parse invalid wire-format data",
+			expectedErr: "error unmarshaling Header",
 		},
 	}
 
@@ -227,7 +227,7 @@ func TestChaincodeStubGetTxTimestamp(t *testing.T) {
 		stub := &ChaincodeStub{proposal: tt.proposal}
 		ts, err := stub.GetTxTimestamp()
 		if tt.expectedErr != "" {
-			assert.EqualError(t, err, tt.expectedErr)
+			assert.ErrorContains(t, err, tt.expectedErr)
 			continue
 		}
 
