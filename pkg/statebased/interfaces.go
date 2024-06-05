@@ -46,6 +46,6 @@ type KeyEndorsementPolicy interface {
 	// policy for this KVS key.
 	DelOrgs(organizations ...string)
 
-	// ListOrgs returns an array of channel orgs that are required to endorse chnages
+	// ListOrgs returns an array of channel orgs that are required to endorse changes
 	ListOrgs() []string
 }

@@ -75,7 +75,7 @@ func (s *stateEP) DelOrgs(delorgs ...string) {
 	}
 }
 
-// ListOrgs returns an array of channel orgs that are required to endorse chnages
+// ListOrgs returns an array of channel orgs that are required to endorse changes
 func (s *stateEP) ListOrgs() []string {
 	orgNames := make([]string, 0, len(s.orgs))
 	for mspid := range s.orgs {
