@@ -100,7 +100,7 @@ func newChaincodeStub(handler *Handler, channelID, txid string, input *pb.Chainc
 		}
 		stub.creator = shdr.GetCreator()
 
-		// extract trasient data from proposal payload
+		// extract transient data from proposal payload
 		payload := &pb.ChaincodeProposalPayload{}
 		if err := proto.Unmarshal(stub.proposal.GetPayload(), payload); err != nil {
 			return nil, fmt.Errorf("failed to extract proposal payload: %s", err)
@@ -493,7 +493,7 @@ func validateCompositeKeyAttribute(str string) error {
 
 // To ensure that simple keys do not go into composite key namespace,
 // we validate simplekey to check whether the key starts with 0x00 (which
-// is the namespace for compositeKey). This helps in avoding simple/composite
+// is the namespace for compositeKey). This helps in avoiding simple/composite
 // key collisions.
 func validateSimpleKeys(simpleKeys ...string) error {
 	for _, key := range simpleKeys {
