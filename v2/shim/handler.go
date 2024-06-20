@@ -386,7 +386,7 @@ func (h *Handler) handleDelState(collection string, key string, channelID string
 	return fmt.Errorf("[%s] incorrect chaincode message %s received. Expecting %s or %s", shorttxid(responseMsg.Txid), responseMsg.Type, peer.ChaincodeMessage_RESPONSE, peer.ChaincodeMessage_ERROR)
 }
 
-// handlerPurgeState communicates with the peer to purge a state from private data
+// handlePurgeState communicates with the peer to purge a state from private data
 func (h *Handler) handlePurgeState(collection string, key string, channelID string, txid string) error {
 	payloadBytes := marshalOrPanic(&peer.DelState{Collection: collection, Key: key})
 	msg := &peer.ChaincodeMessage{Type: peer.ChaincodeMessage_PURGE_PRIVATE_DATA, Payload: payloadBytes, Txid: txid, ChannelId: channelID}
