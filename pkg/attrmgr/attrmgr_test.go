@@ -8,7 +8,7 @@ import (
 	"encoding/base64"
 	"testing"
 
-	"github.com/hyperledger/fabric-chaincode-go/pkg/attrmgr"
+	"github.com/hyperledger/fabric-chaincode-go/v2/pkg/attrmgr"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -78,6 +78,7 @@ func TestIdemixAttrs(t *testing.T) {
 	assert.NoError(t, err, "Failed to base64 decode creator string")
 
 	attrs, err := mgr.GetAttributesFromIdemix(creatorBytes)
+	assert.NoError(t, err, "GetAttributesFromIdemix")
 	numAttrs := len(attrs.Names())
 	assert.True(t, numAttrs == 2, "expecting 2 attributes but found %d", numAttrs)
 	checkAttr(t, "ou", "org1.department1", attrs)

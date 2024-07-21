@@ -13,9 +13,9 @@ import (
 	"os"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-chaincode-go/shim/internal"
-	peerpb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-chaincode-go/v2/shim/internal"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -85,7 +85,7 @@ func StartInProc(chaincodename string, stream ClientStream, cc Chaincode) error 
 
 // this is the chat stream resulting from the chaincode-as-client model where the chaincode initiates connection
 func chaincodeAsClientChat(chaincodename string, stream ClientStream, cc Chaincode) error {
-	defer stream.CloseSend()
+	defer stream.CloseSend() //nolint:Errcheck
 	return chatWithPeer(chaincodename, stream, cc)
 }
 
@@ -95,21 +95,21 @@ func chatWithPeer(chaincodename string, stream PeerChaincodeStream, cc Chaincode
 	handler := newChaincodeHandler(stream, cc)
 
 	// Send the ChaincodeID during register.
-	chaincodeID := &peerpb.ChaincodeID{Name: chaincodename}
+	chaincodeID := &peer.ChaincodeID{Name: chaincodename}
 	payload, err := proto.Marshal(chaincodeID)
 	if err != nil {
 		return fmt.Errorf("error marshalling chaincodeID during chaincode registration: %s", err)
 	}
 
 	// Register on the stream
-	if err = handler.serialSend(&peerpb.ChaincodeMessage{Type: peerpb.ChaincodeMessage_REGISTER, Payload: payload}); err != nil {
+	if err = handler.serialSend(&peer.ChaincodeMessage{Type: peer.ChaincodeMessage_REGISTER, Payload: payload}); err != nil {
 		return fmt.Errorf("error sending chaincode REGISTER: %s", err)
 
 	}
 
 	// holds return values from gRPC Recv below
 	type recvMsg struct {
-		msg *peerpb.ChaincodeMessage
+		msg *peer.ChaincodeMessage
 		err error
 	}
 	msgAvail := make(chan *recvMsg, 1)

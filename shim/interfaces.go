@@ -4,9 +4,9 @@
 package shim
 
 import (
-	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/hyperledger/fabric-protos-go/ledger/queryresult"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/ledger/queryresult"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Chaincode interface must be implemented by all chaincodes. The fabric runs
@@ -15,12 +15,12 @@ type Chaincode interface {
 	// Init is called during Instantiate transaction after the chaincode container
 	// has been established for the first time, allowing the chaincode to
 	// initialize its internal data
-	Init(stub ChaincodeStubInterface) pb.Response
+	Init(stub ChaincodeStubInterface) *peer.Response
 
 	// Invoke is called to update or query the ledger in a proposal transaction.
 	// Updated state variables are not committed to the ledger until the
 	// transaction is committed.
-	Invoke(stub ChaincodeStubInterface) pb.Response
+	Invoke(stub ChaincodeStubInterface) *peer.Response
 }
 
 // ChaincodeStubInterface is used by deployable chaincode apps to access and
@@ -47,13 +47,13 @@ type ChaincodeStubInterface interface {
 
 	// GetTxID returns the tx_id of the transaction proposal, which is unique per
 	// transaction and per client. See
-	// https://godoc.org/github.com/hyperledger/fabric-protos-go/common#ChannelHeader
+	// https://godoc.org/github.com/hyperledger/fabric-protos-go-apiv2/common#ChannelHeader
 	// for further details.
 	GetTxID() string
 
 	// GetChannelID returns the channel the proposal is sent to for chaincode to process.
 	// This would be the channel_id of the transaction proposal (see
-	// https://godoc.org/github.com/hyperledger/fabric-protos-go/common#ChannelHeader )
+	// https://godoc.org/github.com/hyperledger/fabric-protos-go-apiv2/common#ChannelHeader )
 	// except where the chaincode is calling another on a different channel.
 	GetChannelID() string
 
@@ -71,7 +71,7 @@ type ChaincodeStubInterface interface {
 	// the called chaincode on a different channel is a `Query`, which does not
 	// participate in state validation checks in subsequent commit phase.
 	// If `channel` is empty, the caller's channel is assumed.
-	InvokeChaincode(chaincodeName string, args [][]byte, channel string) pb.Response
+	InvokeChaincode(chaincodeName string, args [][]byte, channel string) *peer.Response
 
 	// GetState returns the value of the specified `key` from the
 	// ledger. Note that GetState doesn't read data from the writeset, which
@@ -134,7 +134,7 @@ type ChaincodeStubInterface interface {
 	// Call Close() on the returned StateQueryIteratorInterface object when done.
 	// This call is only supported in a read only transaction.
 	GetStateByRangeWithPagination(startKey, endKey string, pageSize int32,
-		bookmark string) (StateQueryIteratorInterface, *pb.QueryResponseMetadata, error)
+		bookmark string) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error)
 
 	// GetStateByPartialCompositeKey queries the state in the ledger based on
 	// a given partial composite key. This function returns an iterator
@@ -173,7 +173,7 @@ type ChaincodeStubInterface interface {
 	// a partial composite key. For a full composite key, an iter with empty response
 	// would be returned.
 	GetStateByPartialCompositeKeyWithPagination(objectType string, keys []string,
-		pageSize int32, bookmark string) (StateQueryIteratorInterface, *pb.QueryResponseMetadata, error)
+		pageSize int32, bookmark string) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error)
 
 	// CreateCompositeKey combines the given `attributes` to form a composite
 	// key. The objectType and attributes are expected to have only valid utf8
@@ -219,7 +219,7 @@ type ChaincodeStubInterface interface {
 	// must be passed as bookmark.
 	// This call is only supported in a read only transaction.
 	GetQueryResultWithPagination(query string, pageSize int32,
-		bookmark string) (StateQueryIteratorInterface, *pb.QueryResponseMetadata, error)
+		bookmark string) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error)
 
 	// GetHistoryForKey returns a history of key values across time.
 	// For each historic key update, the historic value and associated
@@ -355,12 +355,12 @@ type ChaincodeStubInterface interface {
 
 	// GetSignedProposal returns the SignedProposal object, which contains all
 	// data elements part of a transaction proposal.
-	GetSignedProposal() (*pb.SignedProposal, error)
+	GetSignedProposal() (*peer.SignedProposal, error)
 
 	// GetTxTimestamp returns the timestamp when the transaction was created. This
 	// is taken from the transaction ChannelHeader, therefore it will indicate the
 	// client's timestamp and will have the same value across all endorsers.
-	GetTxTimestamp() (*timestamp.Timestamp, error)
+	GetTxTimestamp() (*timestamppb.Timestamp, error)
 
 	// SetEvent allows the chaincode to set an event on the response to the
 	// proposal to be included as part of a transaction. The event will be
@@ -402,12 +402,4 @@ type HistoryQueryIteratorInterface interface {
 
 	// Next returns the next key and value in the history query iterator.
 	Next() (*queryresult.KeyModification, error)
-}
-
-// MockQueryIteratorInterface allows a chaincode to iterate over a set of
-// key/value pairs returned by range query.
-// TODO: Once the execute query and history query are implemented in MockStub,
-// we need to update this interface
-type MockQueryIteratorInterface interface {
-	StateQueryIteratorInterface
 }

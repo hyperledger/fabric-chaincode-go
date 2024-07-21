@@ -9,15 +9,15 @@ import (
 	"os"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-chaincode-go/shim/internal/mock"
-	"github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/ledger/queryresult"
-	peerpb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-chaincode-go/v2/shim/internal/mock"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/ledger/queryresult"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
+	"google.golang.org/protobuf/proto"
 
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func toChaincodeArgs(args ...string) [][]byte {
@@ -28,6 +28,11 @@ func toChaincodeArgs(args ...string) [][]byte {
 	return ccArgs
 }
 
+// requireProtoEqual ensures an expected protobuf message matches an actual message
+func requireProtoEqual(t *testing.T, expected proto.Message, actual proto.Message) {
+	require.True(t, proto.Equal(expected, actual), "Expected %v, got %v", expected, actual)
+}
+
 func TestNewChaincodeStub(t *testing.T) {
 	expectedArgs := toChaincodeArgs("function", "arg1", "arg2")
 	expectedDecorations := map[string][]byte{"decoration-key": []byte("decoration-value")}
@@ -35,8 +40,8 @@ func TestNewChaincodeStub(t *testing.T) {
 	expectedTransient := map[string][]byte{"key": []byte("value")}
 	expectedEpoch := uint64(999)
 
-	validSignedProposal := &peerpb.SignedProposal{
-		ProposalBytes: marshalOrPanic(&peerpb.Proposal{
+	validSignedProposal := &peer.SignedProposal{
+		ProposalBytes: marshalOrPanic(&peer.Proposal{
 			Header: marshalOrPanic(&common.Header{
 				ChannelHeader: marshalOrPanic(&common.ChannelHeader{
 					Type:  int32(common.HeaderType_ENDORSER_TRANSACTION),
@@ -46,7 +51,7 @@ func TestNewChaincodeStub(t *testing.T) {
 					Creator: expectedCreator,
 				}),
 			}),
-			Payload: marshalOrPanic(&peerpb.ChaincodeProposalPayload{
+			Payload: marshalOrPanic(&peer.ChaincodeProposalPayload{
 				Input:        []byte("chaincode-proposal-input"),
 				TransientMap: expectedTransient,
 			}),
@@ -54,26 +59,26 @@ func TestNewChaincodeStub(t *testing.T) {
 	}
 
 	tests := []struct {
-		signedProposal *peerpb.SignedProposal
+		signedProposal *peer.SignedProposal
 		expectedErr    string
 	}{
 		{signedProposal: nil},
-		{signedProposal: proto.Clone(validSignedProposal).(*peerpb.SignedProposal)},
+		{signedProposal: proto.Clone(validSignedProposal).(*peer.SignedProposal)},
 		{
-			signedProposal: &peerpb.SignedProposal{ProposalBytes: []byte("garbage")},
+			signedProposal: &peer.SignedProposal{ProposalBytes: []byte("garbage")},
 			expectedErr:    "failed to extract Proposal from SignedProposal",
 		},
 		{
-			signedProposal: &peerpb.SignedProposal{},
+			signedProposal: &peer.SignedProposal{},
 			expectedErr:    "failed to extract Proposal fields: proposal header is nil",
 		},
 		{
-			signedProposal: &peerpb.SignedProposal{},
+			signedProposal: &peer.SignedProposal{},
 			expectedErr:    "failed to extract Proposal fields: proposal header is nil",
 		},
 		{
-			signedProposal: &peerpb.SignedProposal{
-				ProposalBytes: marshalOrPanic(&peerpb.Proposal{
+			signedProposal: &peer.SignedProposal{
+				ProposalBytes: marshalOrPanic(&peer.Proposal{
 					Header: marshalOrPanic(&common.Header{
 						ChannelHeader: marshalOrPanic(&common.ChannelHeader{
 							Type:  int32(common.HeaderType_CONFIG_UPDATE),
@@ -91,7 +96,7 @@ func TestNewChaincodeStub(t *testing.T) {
 			&Handler{},
 			"channel-id",
 			"transaction-id",
-			&peerpb.ChaincodeInput{Args: expectedArgs[:], Decorations: expectedDecorations},
+			&peer.ChaincodeInput{Args: expectedArgs[:], Decorations: expectedDecorations},
 			tt.signedProposal,
 		)
 		if tt.expectedErr != "" {
@@ -116,7 +121,7 @@ func TestNewChaincodeStub(t *testing.T) {
 			continue
 		}
 
-		prop := &peerpb.Proposal{}
+		prop := &peer.Proposal{}
 		err = proto.Unmarshal(tt.signedProposal.ProposalBytes, prop)
 		assert.NoError(t, err)
 		assert.Equal(t, prop, stub.proposal)
@@ -141,7 +146,7 @@ func TestChaincodeStubSetEvent(t *testing.T) {
 	stub = &ChaincodeStub{}
 	err = stub.SetEvent("name", []byte("payload"))
 	assert.NoError(t, err)
-	assert.Equal(t, &peerpb.ChaincodeEvent{EventName: "name", Payload: []byte("payload")}, stub.chaincodeEvent)
+	assert.Equal(t, &peer.ChaincodeEvent{EventName: "name", Payload: []byte("payload")}, stub.chaincodeEvent)
 }
 
 func TestChaincodeStubAccessors(t *testing.T) {
@@ -186,22 +191,22 @@ func TestChaincodeStubAccessors(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("binding"), binding)
 
-	stub = &ChaincodeStub{signedProposal: &peerpb.SignedProposal{ProposalBytes: []byte("proposal-bytes")}}
+	stub = &ChaincodeStub{signedProposal: &peer.SignedProposal{ProposalBytes: []byte("proposal-bytes")}}
 	sp, err := stub.GetSignedProposal()
 	assert.NoError(t, err)
-	assert.Equal(t, &peerpb.SignedProposal{ProposalBytes: []byte("proposal-bytes")}, sp)
+	assert.Equal(t, &peer.SignedProposal{ProposalBytes: []byte("proposal-bytes")}, sp)
 }
 
 func TestChaincodeStubGetTxTimestamp(t *testing.T) {
-	now := ptypes.TimestampNow()
+	now := timestamppb.Now()
 	tests := []struct {
-		proposal    *peerpb.Proposal
-		ts          *timestamp.Timestamp
+		proposal    *peer.Proposal
+		ts          *timestamppb.Timestamp
 		expectedErr string
 	}{
 		{
 			ts: now,
-			proposal: &peerpb.Proposal{
+			proposal: &peer.Proposal{
 				Header: marshalOrPanic(&common.Header{
 					ChannelHeader: marshalOrPanic(&common.ChannelHeader{
 						Timestamp: now,
@@ -210,7 +215,7 @@ func TestChaincodeStubGetTxTimestamp(t *testing.T) {
 			},
 		},
 		{
-			proposal: &peerpb.Proposal{
+			proposal: &peer.Proposal{
 				Header: marshalOrPanic(&common.Header{
 					ChannelHeader: []byte("garbage-channel-header"),
 				}),
@@ -218,7 +223,7 @@ func TestChaincodeStubGetTxTimestamp(t *testing.T) {
 			expectedErr: "error unmarshaling ChannelHeader",
 		},
 		{
-			proposal:    &peerpb.Proposal{Header: []byte("garbage-header")},
+			proposal:    &peer.Proposal{Header: []byte("garbage-header")},
 			expectedErr: "error unmarshaling Header",
 		},
 	}
@@ -252,13 +257,13 @@ func TestGetMSPID(t *testing.T) {
 func TestChaincodeStubHandlers(t *testing.T) {
 	var tests = []struct {
 		name     string
-		resType  peerpb.ChaincodeMessage_Type
+		resType  peer.ChaincodeMessage_Type
 		payload  []byte
 		testFunc func(*ChaincodeStub, *Handler, *testing.T, []byte)
 	}{
 		{
 			name:    "Simple Response",
-			resType: peerpb.ChaincodeMessage_RESPONSE,
+			resType: peer.ChaincodeMessage_RESPONSE,
 			payload: []byte("myvalue"),
 			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
 				resp, err := s.GetState("key")
@@ -316,10 +321,10 @@ func TestChaincodeStubHandlers(t *testing.T) {
 		},
 		{
 			name:    "ValidationParameter",
-			resType: peerpb.ChaincodeMessage_RESPONSE,
+			resType: peer.ChaincodeMessage_RESPONSE,
 			payload: marshalOrPanic(
-				&peerpb.StateMetadataResult{
-					Entries: []*peerpb.StateMetadata{
+				&peer.StateMetadataResult{
+					Entries: []*peer.StateMetadata{
 						{
 							Metakey: "mkey",
 							Value:   []byte("metavalue"),
@@ -343,12 +348,12 @@ func TestChaincodeStubHandlers(t *testing.T) {
 		},
 		{
 			name:    "InvokeChaincode",
-			resType: peerpb.ChaincodeMessage_RESPONSE,
+			resType: peer.ChaincodeMessage_RESPONSE,
 			payload: marshalOrPanic(
-				&peerpb.ChaincodeMessage{
-					Type: peerpb.ChaincodeMessage_COMPLETED,
+				&peer.ChaincodeMessage{
+					Type: peer.ChaincodeMessage_COMPLETED,
 					Payload: marshalOrPanic(
-						&peerpb.Response{
+						&peer.Response{
 							Status:  OK,
 							Payload: []byte("invokechaincode"),
 						},
@@ -362,10 +367,10 @@ func TestChaincodeStubHandlers(t *testing.T) {
 		},
 		{
 			name:    "QueryResponse",
-			resType: peerpb.ChaincodeMessage_RESPONSE,
+			resType: peer.ChaincodeMessage_RESPONSE,
 			payload: marshalOrPanic(
-				&peerpb.QueryResponse{
-					Results: []*peerpb.QueryResultBytes{
+				&peer.QueryResponse{
+					Results: []*peer.QueryResultBytes{
 						{
 							ResultBytes: marshalOrPanic(
 								&queryresult.KV{
@@ -376,7 +381,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 						},
 					},
 					Metadata: marshalOrPanic(
-						&peerpb.QueryResponseMetadata{
+						&peer.QueryResponseMetadata{
 							Bookmark:            "book",
 							FetchedRecordsCount: 1,
 						},
@@ -399,7 +404,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetQueryResult: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				requireProtoEqual(t, expectedResult, kv)
 
 				sqi, err = s.GetPrivateDataQueryResult("col", "query")
 				if err != nil {
@@ -409,7 +414,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetPrivateDataQueryResult: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				requireProtoEqual(t, expectedResult, kv)
 
 				_, err = s.GetPrivateDataQueryResult("", "query")
 				assert.EqualError(t, err, "collection must not be an empty string")
@@ -423,23 +428,24 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetStateByRange: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				requireProtoEqual(t, expectedResult, kv)
 				// second result
 				assert.True(t, sqi.HasNext())
 				kv, err = sqi.Next()
 				if err != nil {
 					t.Fatalf("Unexpected error for GetStateByRange: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				requireProtoEqual(t, expectedResult, kv)
 				err = sqi.Close()
 				assert.NoError(t, err)
 
 				sqi, qrm, err := s.GetStateByRangeWithPagination("", "end", 1, "book")
+				assert.NoError(t, err)
 				kv, err = sqi.Next()
 				if err != nil {
 					t.Fatalf("Unexpected error for GetStateByRangeWithPagination: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				requireProtoEqual(t, expectedResult, kv)
 				assert.Equal(t, "book", qrm.GetBookmark())
 				assert.Equal(t, int32(1), qrm.GetFetchedRecordsCount())
 
@@ -451,24 +457,26 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetPrivateDataByRange: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				requireProtoEqual(t, expectedResult, kv)
 
 				_, err = s.GetPrivateDataByRange("", "", "end")
 				assert.EqualError(t, err, "collection must not be an empty string")
 
 				sqi, err = s.GetStateByPartialCompositeKey("object", []string{"attr1", "attr2"})
+				assert.NoError(t, err)
 				kv, err = sqi.Next()
 				if err != nil {
 					t.Fatalf("Unexpected error for GetStateByPartialCompositeKey: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				requireProtoEqual(t, expectedResult, kv)
 
 				sqi, err = s.GetPrivateDataByPartialCompositeKey("col", "object", []string{"attr1", "attr2"})
+				assert.NoError(t, err)
 				kv, err = sqi.Next()
 				if err != nil {
 					t.Fatalf("Unexpected error for GetPrivateDataByPartialCompositeKey: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				requireProtoEqual(t, expectedResult, kv)
 
 				_, err = s.GetPrivateDataByPartialCompositeKey("", "object", []string{"attr1", "attr2"})
 				assert.EqualError(t, err, "collection must not be an empty string")
@@ -479,30 +487,32 @@ func TestChaincodeStubHandlers(t *testing.T) {
 					1,
 					"book",
 				)
+				assert.NoError(t, err)
 				kv, err = sqi.Next()
 				if err != nil {
 					t.Fatalf("Unexpected error for GetStateByPartialCompositeKeyWithPagination: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				requireProtoEqual(t, expectedResult, kv)
 				assert.Equal(t, "book", qrm.GetBookmark())
 				assert.Equal(t, int32(1), qrm.GetFetchedRecordsCount())
 
 				sqi, qrm, err = s.GetQueryResultWithPagination("query", 1, "book")
+				assert.NoError(t, err)
 				kv, err = sqi.Next()
 				if err != nil {
 					t.Fatalf("Unexpected error forGetQueryResultWithPagination: %s", err)
 				}
-				assert.Equal(t, expectedResult, kv)
+				requireProtoEqual(t, expectedResult, kv)
 				assert.Equal(t, "book", qrm.GetBookmark())
 				assert.Equal(t, int32(1), qrm.GetFetchedRecordsCount())
 			},
 		},
 		{
 			name:    "GetHistoryForKey",
-			resType: peerpb.ChaincodeMessage_RESPONSE,
+			resType: peer.ChaincodeMessage_RESPONSE,
 			payload: marshalOrPanic(
-				&peerpb.QueryResponse{
-					Results: []*peerpb.QueryResultBytes{
+				&peer.QueryResponse{
+					Results: []*peer.QueryResultBytes{
 						{
 							ResultBytes: marshalOrPanic(
 								&queryresult.KeyModification{
@@ -528,13 +538,13 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Unexpected error for GetPrivateDataByRangee: %s", err)
 				}
-				assert.Equal(t, expectedResult, km)
+				requireProtoEqual(t, expectedResult, km)
 				assert.False(t, hqi.HasNext())
 			},
 		},
 		{
 			name:    "Error Conditions",
-			resType: peerpb.ChaincodeMessage_ERROR,
+			resType: peer.ChaincodeMessage_ERROR,
 			payload: []byte("error"),
 			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
 				_, err := s.GetState("key")
@@ -578,7 +588,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 
 			handler := &Handler{
 				cc:               &mockChaincode{},
-				responseChannels: map[string]chan peerpb.ChaincodeMessage{},
+				responseChannels: map[string]chan *peer.ChaincodeMessage{},
 				state:            ready,
 			}
 			stub := &ChaincodeStub{
@@ -588,16 +598,17 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				validationParameterMetakey: "mkey",
 			}
 			chatStream := &mock.PeerChaincodeStream{}
-			chatStream.SendStub = func(msg *peerpb.ChaincodeMessage) error {
+			chatStream.SendStub = func(msg *peer.ChaincodeMessage) error {
 				go func() {
-					handler.handleResponse(
-						&peerpb.ChaincodeMessage{
+					err := handler.handleResponse(
+						&peer.ChaincodeMessage{
 							Type:      test.resType,
 							ChannelId: msg.GetChannelId(),
 							Txid:      msg.GetTxid(),
 							Payload:   test.payload,
 						},
 					)
+					assert.NoError(t, err, "handleResponse")
 				}()
 				return nil
 			}

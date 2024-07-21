@@ -9,19 +9,19 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 )
 
 type testServer struct {
-	receivedMessages chan<- *pb.ChaincodeMessage
-	sendMessages     <-chan *pb.ChaincodeMessage
+	receivedMessages chan<- *peer.ChaincodeMessage
+	sendMessages     <-chan *peer.ChaincodeMessage
 	waitTime         time.Duration
 }
 
-func (t *testServer) Register(registerServer pb.ChaincodeSupport_RegisterServer) error {
+func (t *testServer) Register(registerServer peer.ChaincodeSupport_RegisterServer) error {
 	for {
 		recv, err := registerServer.Recv()
 		if err != nil {
@@ -55,8 +55,8 @@ func TestMessageSizes(t *testing.T) {
 	assert.NoError(t, err, "listen failed")
 	defer lis.Close()
 
-	sendMessages := make(chan *pb.ChaincodeMessage, 1)
-	receivedMessages := make(chan *pb.ChaincodeMessage, 1)
+	sendMessages := make(chan *peer.ChaincodeMessage, 1)
+	receivedMessages := make(chan *peer.ChaincodeMessage, 1)
 	testServer := &testServer{
 		receivedMessages: receivedMessages,
 		sendMessages:     sendMessages,
@@ -67,7 +67,7 @@ func TestMessageSizes(t *testing.T) {
 		grpc.MaxSendMsgSize(2*maxSendMessageSize),
 		grpc.MaxRecvMsgSize(2*maxRecvMessageSize),
 	)
-	pb.RegisterChaincodeSupportServer(server, testServer)
+	peer.RegisterChaincodeSupportServer(server, testServer)
 
 	serveCompleteCh := make(chan error, 1)
 	go func() { serveCompleteCh <- server.Serve(lis) }()
@@ -79,7 +79,7 @@ func TestMessageSizes(t *testing.T) {
 	assert.NoError(t, err, "failed to create register client")
 
 	t.Run("acceptable messaages", func(t *testing.T) {
-		acceptableMessage := &pb.ChaincodeMessage{
+		acceptableMessage := &peer.ChaincodeMessage{
 			Payload: make([]byte, maxSendMessageSize-100),
 		}
 		sendMessages <- acceptableMessage
@@ -99,10 +99,10 @@ func TestMessageSizes(t *testing.T) {
 	})
 
 	t.Run("response message is too large", func(t *testing.T) {
-		sendMessages <- &pb.ChaincodeMessage{
+		sendMessages <- &peer.ChaincodeMessage{
 			Payload: make([]byte, maxSendMessageSize+1),
 		}
-		err = regClient.Send(&pb.ChaincodeMessage{})
+		err = regClient.Send(&peer.ChaincodeMessage{})
 		assert.NoError(t, err, "sending messge below size threshold should succeed")
 
 		select {
@@ -117,7 +117,7 @@ func TestMessageSizes(t *testing.T) {
 	})
 
 	t.Run("sent message is too large", func(t *testing.T) {
-		tooBig := &pb.ChaincodeMessage{
+		tooBig := &peer.ChaincodeMessage{
 			Payload: make([]byte, maxSendMessageSize+1),
 		}
 		err = regClient.Send(tooBig)

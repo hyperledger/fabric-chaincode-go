@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-chaincode-go/shim/internal"
+	"github.com/hyperledger/fabric-chaincode-go/v2/shim/internal"
 
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/keepalive"
@@ -23,7 +23,7 @@ func TestBadServer(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "nil listener")
 
-	l, err := net.Listen("tcp", ":0")
+	l, err := net.Listen("tcp", ":0") // #nosec G102
 	assert.NotNil(t, l)
 	assert.Nil(t, err)
 	srv = &internal.Server{Listener: l}

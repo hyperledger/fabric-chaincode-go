@@ -7,10 +7,10 @@ import (
 	"encoding/base64"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-chaincode-go/pkg/cid"
-	"github.com/hyperledger/fabric-protos-go/msp"
+	"github.com/hyperledger/fabric-chaincode-go/v2/pkg/cid"
+	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 )
 
 const certWithOutAttrs = `-----BEGIN CERTIFICATE-----
@@ -44,6 +44,7 @@ svTTvBqLR5JeQSctJuz3zaqGRqSs2iW+QB3FAiAIP0mGWKcgSGRMMBvaqaLytBYo
 -----END CERTIFICATE-----
 `
 
+// #nosec G101
 const idemixCred = `CiAGTPr9iYBj7gqHeU90RgXXklBhgIKbtVtUzMDnhJ9bCRIggb1mWLzNEO1ac+PfDNSpbCC02eY5OqRooSH1mnhlftEaQgoMaWRlbWl4TVNQSUQyEhBvcmcxLmRlcGFydG1lbnQxGiCEOl1qWZ+TRhDD3X6Cl59utnDnW8oio0y2vuJ1xHNMMiIOCgxpZGVtaXhNU1BJRDIq5gYKRAog1MgGWhcd/jgQpbpdO17LktSoelSsQJKfAmFhspaM6+QSICMcxQLs4JRPeSbyWG81KNepmLIi8C1AOyrgytJYMmKIEkQKICCwfD7vfGKqzGFEa7H7cBbR81kImbXcECJnDbj4QQNUEiB64Bi0jRahh18QuZzqnw6sksn8GBCi2sVsrjtLTKsvMRpECiBD9miof2CyCjHOr6s/JAiALRzjdogv0xQHEyqNAfIDABIgx56y7lUllGc0XtYsFIdq7CulDE55Re5xT1wvzRNhITUiIPSaozvr294lNGF3Wy5Yd7wlNW/IZBpBcXda/dQfGci9KiBbO2o2bWD1P4HOMfI//ebo8WrwTNgmPfmlqNBxzKuQMjIg5AwmQGEYnKN/pOVDFMjm/3a9hJDv9R2svI42aVBms0M6IHMSFIZ8j/yZH5nHtCkwpQMCuBFmI6krD2CfTjCiOUfoQiDO7cyRnCt9uEGIhQsBiwnSEXH+G9Il9qvfkUrAiZlbrkogv6dmb1xijfB3gsyVWxgfKlRNRtf78dMwjSf76jEnSrBSIJTkD7lSBwBepMFROxYneTHuG6JcSZpdoeOGqFl0drJWUiC8ndC2y9LsFJLKs2ddFqsFW7kNg+vROXuSLQdglSBffVog/eDzc90wTBEZu2T6LhWEbcP5oZ5TYdE/o+cOUfPgV4RiRAogBkz6/YmAY+4Kh3lPdEYF15JQYYCCm7VbVMzA54SfWwkSIIG9Zli8zRDtWnPj3wzUqWwgtNnmOTqkaKEh9Zp4ZX7RaiCXNeWrQz2UPkuAEZrt++TP/DbmAFF7cBQlYkb81jrn/nKIAQog/gwzULTJbCAoVg9XfCiROs4cU5oSv4Q80iYWtonAnvsSIE6mYFdzisBU21rhxjfYE7kk3Xjih9A1idJp7TSjfmorGiBwIEbnxUKjs3Z3DXUSTj5R78skdY1hWEjpCbSBvtwn/yIgBVTjvNOIwpBC7qZJKX6yn4tMvoCCGpiz4BKBEUqtBJt6ZzBlAjEAoBaHzX1HjvrnPMDXajqcLeHR5//AIIGDDcGQ+4GNqJu9Wawlw6Zs58Nnkpmh29ivAjBJNHeGNvX9sQb9lyzLAtCa5Il4xKNGGpGZ+uhQAjtNpRAZLtv2hgSqJAy0X6HwNXeAAQGKAQA=`
 
 func TestClient(t *testing.T) {
@@ -70,6 +71,7 @@ func TestClient(t *testing.T) {
 	assert.NoError(t, err, "Error getting X509 cert of the submitter of the transaction")
 	assert.True(t, found)
 	found, err = cid.HasOUValue(stub, "foo")
+	assert.NoError(t, err, "HasOUValue")
 	assert.False(t, found, "OU 'foo' should not be found in the submitter cert")
 
 	stub, err = getMockStubWithAttrs()
@@ -90,17 +92,18 @@ func TestClient(t *testing.T) {
 	assert.Error(t, err, "Assert should have failed; value was val1, not val2")
 	found, err = cid.HasOUValue(stub, "foo")
 	assert.NoError(t, err, "Error getting X509 cert of the submitter of the transaction")
+	assert.False(t, found, "HasOUValue")
 
 	// Error case1
 	stub, err = getMockStubWithNilCreator()
 	assert.NoError(t, err, "Failed to get mock submitter")
-	sinfo, err = cid.New(stub)
+	_, err = cid.New(stub)
 	assert.Error(t, err, "NewSubmitterInfo should have returned an error when submitter with nil creator is passed")
 
 	// Error case2
 	stub, err = getMockStubWithFakeCreator()
 	assert.NoError(t, err, "Failed to get mock submitter")
-	sinfo, err = cid.New(stub)
+	_, err = cid.New(stub)
 	assert.Error(t, err, "NewSubmitterInfo should have returned an error when submitter with fake creator is passed")
 }
 
@@ -123,7 +126,8 @@ func TestIdemix(t *testing.T) {
 	assert.NoError(t, err, "Error getting 'role' of the submitter of the transaction")
 	assert.True(t, found, "Attribute 'role' should be found in the submitter cert")
 	assert.Equal(t, attrVal, "member", "Value of attribute 'attr1' should be 'val1'")
-	attrVal, found, err = sinfo.GetAttributeValue("id")
+	_, found, err = sinfo.GetAttributeValue("id")
+	assert.NoError(t, err, "GetAttributeValue")
 	assert.False(t, found, "Attribute 'id' should not be found in the submitter cert")
 }
 

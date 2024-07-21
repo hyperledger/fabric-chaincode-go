@@ -7,32 +7,33 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hyperledger/fabric-chaincode-go/shim/internal/mock"
-	peerpb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-chaincode-go/v2/shim/internal/mock"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 
 	"github.com/stretchr/testify/assert"
 )
 
 //go:generate counterfeiter -o internal/mock/peer_chaincode_stream.go --fake-name PeerChaincodeStream . peerChaincodeStream
 
+//lint:ignore U1000 Required to avoid circular dependency with mock
 type peerChaincodeStream interface{ PeerChaincodeStream }
 
 //go:generate counterfeiter -o internal/mock/client_stream.go --fake-name ClientStream . clientStream
 
+//lint:ignore U1000 Required to avoid circular dependency with mock
 type clientStream interface{ ClientStream }
 
 type mockChaincode struct {
-	errMsg       string
 	initCalled   bool
 	invokeCalled bool
 }
 
-func (mcc *mockChaincode) Init(stub ChaincodeStubInterface) peerpb.Response {
+func (mcc *mockChaincode) Init(stub ChaincodeStubInterface) *peer.Response {
 	mcc.initCalled = true
 	return Success(nil)
 }
 
-func (mcc *mockChaincode) Invoke(stub ChaincodeStubInterface) peerpb.Response {
+func (mcc *mockChaincode) Invoke(stub ChaincodeStubInterface) *peer.Response {
 	mcc.invokeCalled = true
 	return Success(nil)
 }
@@ -46,7 +47,7 @@ func TestNewHandler_CreatedState(t *testing.T) {
 	expected := &Handler{
 		chatStream:       chatStream,
 		cc:               cc,
-		responseChannels: map[string]chan peerpb.ChaincodeMessage{},
+		responseChannels: map[string]chan *peer.ChaincodeMessage{},
 		state:            created,
 	}
 
@@ -63,52 +64,52 @@ func TestHandlerState(t *testing.T) {
 	var tests = []struct {
 		name        string
 		state       state
-		msg         *peerpb.ChaincodeMessage
+		msg         *peer.ChaincodeMessage
 		expectedErr string
 	}{
 		{
 			name:  "created",
 			state: created,
-			msg: &peerpb.ChaincodeMessage{
-				Type: peerpb.ChaincodeMessage_REGISTERED,
+			msg: &peer.ChaincodeMessage{
+				Type: peer.ChaincodeMessage_REGISTERED,
 			},
 		},
 		{
 			name:  "wrong message type in created state",
 			state: created,
-			msg: &peerpb.ChaincodeMessage{
-				Type: peerpb.ChaincodeMessage_READY,
+			msg: &peer.ChaincodeMessage{
+				Type: peer.ChaincodeMessage_READY,
 			},
-			expectedErr: fmt.Sprintf("cannot handle message (%s)", peerpb.ChaincodeMessage_READY),
+			expectedErr: fmt.Sprintf("cannot handle message (%s)", peer.ChaincodeMessage_READY),
 		},
 		{
 			name:  "established",
 			state: established,
-			msg: &peerpb.ChaincodeMessage{
-				Type: peerpb.ChaincodeMessage_READY,
+			msg: &peer.ChaincodeMessage{
+				Type: peer.ChaincodeMessage_READY,
 			},
 		},
 		{
 			name:  "wrong message type in  established state",
 			state: established,
-			msg: &peerpb.ChaincodeMessage{
-				Type: peerpb.ChaincodeMessage_REGISTERED,
+			msg: &peer.ChaincodeMessage{
+				Type: peer.ChaincodeMessage_REGISTERED,
 			},
-			expectedErr: fmt.Sprintf("cannot handle message (%s)", peerpb.ChaincodeMessage_REGISTERED),
+			expectedErr: fmt.Sprintf("cannot handle message (%s)", peer.ChaincodeMessage_REGISTERED),
 		},
 		{
 			name:  "wrong message type in ready state",
 			state: ready,
-			msg: &peerpb.ChaincodeMessage{
-				Type: peerpb.ChaincodeMessage_REGISTERED,
+			msg: &peer.ChaincodeMessage{
+				Type: peer.ChaincodeMessage_REGISTERED,
 			},
-			expectedErr: fmt.Sprintf("cannot handle message (%s)", peerpb.ChaincodeMessage_REGISTERED),
+			expectedErr: fmt.Sprintf("cannot handle message (%s)", peer.ChaincodeMessage_REGISTERED),
 		},
 		{
 			name:  "keepalive",
 			state: established,
-			msg: &peerpb.ChaincodeMessage{
-				Type: peerpb.ChaincodeMessage_KEEPALIVE,
+			msg: &peer.ChaincodeMessage{
+				Type: peer.ChaincodeMessage_KEEPALIVE,
 			},
 		},
 	}
@@ -137,54 +138,54 @@ func TestHandleMessage(t *testing.T) {
 
 	var tests = []struct {
 		name         string
-		msg          *peerpb.ChaincodeMessage
-		msgType      peerpb.ChaincodeMessage_Type
+		msg          *peer.ChaincodeMessage
+		msgType      peer.ChaincodeMessage_Type
 		expectedErr  string
 		invokeCalled bool
 		initCalled   bool
 	}{
 		{
 			name: "INIT",
-			msg: &peerpb.ChaincodeMessage{
-				Type: peerpb.ChaincodeMessage_INIT,
+			msg: &peer.ChaincodeMessage{
+				Type: peer.ChaincodeMessage_INIT,
 			},
-			msgType:      peerpb.ChaincodeMessage_COMPLETED,
+			msgType:      peer.ChaincodeMessage_COMPLETED,
 			initCalled:   true,
 			invokeCalled: false,
 		},
 		{
 			name: "INIT with bad payload",
-			msg: &peerpb.ChaincodeMessage{
-				Type:    peerpb.ChaincodeMessage_INIT,
+			msg: &peer.ChaincodeMessage{
+				Type:    peer.ChaincodeMessage_INIT,
 				Payload: []byte{1},
 			},
-			msgType:      peerpb.ChaincodeMessage_ERROR,
+			msgType:      peer.ChaincodeMessage_ERROR,
 			initCalled:   false,
 			invokeCalled: false,
 		},
 		{
 			name: "INVOKE",
-			msg: &peerpb.ChaincodeMessage{
-				Type: peerpb.ChaincodeMessage_TRANSACTION,
+			msg: &peer.ChaincodeMessage{
+				Type: peer.ChaincodeMessage_TRANSACTION,
 			},
-			msgType:      peerpb.ChaincodeMessage_COMPLETED,
+			msgType:      peer.ChaincodeMessage_COMPLETED,
 			initCalled:   false,
 			invokeCalled: true,
 		},
 		{
 			name: "INVOKE with bad payload",
-			msg: &peerpb.ChaincodeMessage{
-				Type:    peerpb.ChaincodeMessage_TRANSACTION,
+			msg: &peer.ChaincodeMessage{
+				Type:    peer.ChaincodeMessage_TRANSACTION,
 				Payload: []byte{1},
 			},
-			msgType:      peerpb.ChaincodeMessage_ERROR,
+			msgType:      peer.ChaincodeMessage_ERROR,
 			initCalled:   false,
 			invokeCalled: false,
 		},
 		{
 			name: "RESPONSE with no responseChannel",
-			msg: &peerpb.ChaincodeMessage{
-				Type: peerpb.ChaincodeMessage_RESPONSE,
+			msg: &peer.ChaincodeMessage{
+				Type: peer.ChaincodeMessage_RESPONSE,
 			},
 			expectedErr: "responseChannel does not exist",
 		},
@@ -198,8 +199,8 @@ func TestHandleMessage(t *testing.T) {
 			chatStream := &mock.PeerChaincodeStream{}
 			cc := &mockChaincode{}
 
-			msgChan := make(chan *peerpb.ChaincodeMessage)
-			chatStream.SendStub = func(msg *peerpb.ChaincodeMessage) error {
+			msgChan := make(chan *peer.ChaincodeMessage)
+			chatStream.SendStub = func(msg *peer.ChaincodeMessage) error {
 				go func() {
 					msgChan <- msg
 				}()
@@ -210,7 +211,7 @@ func TestHandleMessage(t *testing.T) {
 			handler := &Handler{
 				chatStream:       chatStream,
 				cc:               cc,
-				responseChannels: map[string]chan peerpb.ChaincodeMessage{},
+				responseChannels: map[string]chan *peer.ChaincodeMessage{},
 				state:            ready,
 			}
 
@@ -234,20 +235,21 @@ func TestHandlePeerCalls(t *testing.T) {
 	payload := []byte("error")
 	h := &Handler{
 		cc:               &mockChaincode{},
-		responseChannels: map[string]chan peerpb.ChaincodeMessage{},
+		responseChannels: map[string]chan *peer.ChaincodeMessage{},
 		state:            ready,
 	}
 	chatStream := &mock.PeerChaincodeStream{}
-	chatStream.SendStub = func(msg *peerpb.ChaincodeMessage) error {
+	chatStream.SendStub = func(msg *peer.ChaincodeMessage) error {
 		go func() {
-			h.handleResponse(
-				&peerpb.ChaincodeMessage{
-					Type:      peerpb.ChaincodeMessage_ERROR,
+			err := h.handleResponse(
+				&peer.ChaincodeMessage{
+					Type:      peer.ChaincodeMessage_ERROR,
 					ChannelId: msg.GetChannelId(),
 					Txid:      msg.GetTxid(),
 					Payload:   payload,
 				},
 			)
+			assert.NoError(t, err, "handleResponse")
 		}()
 		return nil
 	}

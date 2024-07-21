@@ -4,7 +4,7 @@
 package shim
 
 import (
-	pb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 )
 
 const (
@@ -20,16 +20,16 @@ const (
 )
 
 // Success ...
-func Success(payload []byte) pb.Response {
-	return pb.Response{
+func Success(payload []byte) *peer.Response {
+	return &peer.Response{
 		Status:  OK,
 		Payload: payload,
 	}
 }
 
 // Error ...
-func Error(msg string) pb.Response {
-	return pb.Response{
+func Error(msg string) *peer.Response {
+	return &peer.Response{
 		Status:  ERROR,
 		Message: msg,
 	}

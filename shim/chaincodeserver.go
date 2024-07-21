@@ -7,8 +7,8 @@ import (
 	"crypto/tls"
 	"errors"
 
-	"github.com/hyperledger/fabric-chaincode-go/shim/internal"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-chaincode-go/v2/shim/internal"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 
 	"google.golang.org/grpc/keepalive"
 )
@@ -38,7 +38,7 @@ type ChaincodeServer struct {
 }
 
 // Connect the bidi stream entry point called by chaincode to register with the Peer.
-func (cs *ChaincodeServer) Connect(stream pb.Chaincode_ConnectServer) error {
+func (cs *ChaincodeServer) Connect(stream peer.Chaincode_ConnectServer) error {
 	return chatWithPeer(cs.CCID, stream, cs.CC)
 }
 
@@ -72,7 +72,7 @@ func (cs *ChaincodeServer) Start() error {
 	}
 
 	// register the server with grpc ...
-	pb.RegisterChaincodeServer(server.Server, cs)
+	peer.RegisterChaincodeServer(server.Server, cs)
 
 	// ... and start
 	return server.Start()

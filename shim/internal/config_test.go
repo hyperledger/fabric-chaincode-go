@@ -8,13 +8,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
 
-	. "github.com/hyperledger/fabric-chaincode-go/shim/internal"
-	peerpb "github.com/hyperledger/fabric-protos-go/peer"
+	. "github.com/hyperledger/fabric-chaincode-go/v2/shim/internal"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -63,6 +62,7 @@ bHHlP/A/QkbGqJL4HQ==
 -----END CERTIFICATE-----
 `
 
+// #nosec G101
 var clientKeyPEM = `-----BEGIN EC PRIVATE KEY-----
 MHcCAQEEINVHep4/z6iPa151Ipp4MmCb1l/VKkY3vuMfUQf3LhQboAoGCCqGSM49
 AwEHoUQDQgAEcE6hZ7muszSi5wXIVKPdIuLYPTIxQxj+jekPRfFnJF/RJKM0Nj3T
@@ -102,13 +102,13 @@ XIlJQdS/9afDi32qZWZfe3kAUAs0
 
 func TestLoadBase64EncodedConfig(t *testing.T) {
 	// setup key/cert files
-	testDir, err := ioutil.TempDir("", "shiminternal")
+	testDir, err := os.MkdirTemp("", "shiminternal")
 	if err != nil {
 		t.Fatalf("Failed to test directory: %s", err)
 	}
 	defer os.RemoveAll(testDir)
 
-	keyFile, err := ioutil.TempFile(testDir, "testKey")
+	keyFile, err := os.CreateTemp(testDir, "testKey")
 	if err != nil {
 		t.Fatalf("Failed to create key file: %s", err)
 	}
@@ -117,7 +117,7 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 		t.Fatalf("Failed to write to key file: %s", err)
 	}
 
-	certFile, err := ioutil.TempFile(testDir, "testCert")
+	certFile, err := os.CreateTemp(testDir, "testCert")
 	if err != nil {
 		t.Fatalf("Failed to create cert file: %s", err)
 	}
@@ -126,7 +126,7 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 		t.Fatalf("Failed to write to cert file: %s", err)
 	}
 
-	rootFile, err := ioutil.TempFile(testDir, "testRoot")
+	rootFile, err := os.CreateTemp(testDir, "testRoot")
 	if err != nil {
 		t.Fatalf("Failed to create root file: %s", err)
 	}
@@ -134,7 +134,7 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 		t.Fatalf("Failed to write to root file: %s", err)
 	}
 
-	notb64File, err := ioutil.TempFile(testDir, "testNotb64")
+	notb64File, err := os.CreateTemp(testDir, "testNotb64")
 	if err != nil {
 		t.Fatalf("Failed to create notb64 file: %s", err)
 	}
@@ -142,7 +142,7 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 		t.Fatalf("Failed to write to notb64 file: %s", err)
 	}
 
-	notPEMFile, err := ioutil.TempFile(testDir, "testNotPEM")
+	notPEMFile, err := os.CreateTemp(testDir, "testNotPEM")
 	if err != nil {
 		t.Fatalf("Failed to create notPEM file: %s", err)
 	}
@@ -324,7 +324,7 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_RSA_WITH_AES_128_GCM_SHA256, // #nosec G402
 			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
 		},
 		ClientAuth: tls.RequireAndVerifyClientCert,
@@ -339,7 +339,7 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_RSA_WITH_AES_128_GCM_SHA256, // #nosec G402
 			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
 		},
 		ClientAuth: tls.NoClientCert,
@@ -416,13 +416,13 @@ func tlsConfigEquals(t *testing.T, cfg1 *tls.Config, cfg2 *tls.Config) {
 
 func TestLoadPEMEncodedConfig(t *testing.T) {
 	// setup key/cert files
-	testDir, err := ioutil.TempDir("", "shiminternal")
+	testDir, err := os.MkdirTemp("", "shiminternal")
 	if err != nil {
 		t.Fatalf("Failed to test directory: %s", err)
 	}
 	defer os.RemoveAll(testDir)
 
-	keyFile, err := ioutil.TempFile(testDir, "testKey")
+	keyFile, err := os.CreateTemp(testDir, "testKey")
 	if err != nil {
 		t.Fatalf("Failed to create key file: %s", err)
 	}
@@ -430,7 +430,7 @@ func TestLoadPEMEncodedConfig(t *testing.T) {
 		t.Fatalf("Failed to write to key file: %s", err)
 	}
 
-	certFile, err := ioutil.TempFile(testDir, "testCert")
+	certFile, err := os.CreateTemp(testDir, "testCert")
 	if err != nil {
 		t.Fatalf("Failed to create cert file: %s", err)
 	}
@@ -438,7 +438,7 @@ func TestLoadPEMEncodedConfig(t *testing.T) {
 		t.Fatalf("Failed to write to cert file: %s", err)
 	}
 
-	rootFile, err := ioutil.TempFile(testDir, "testRoot")
+	rootFile, err := os.CreateTemp(testDir, "testRoot")
 	if err != nil {
 		t.Fatalf("Failed to create root file: %s", err)
 	}
@@ -446,7 +446,7 @@ func TestLoadPEMEncodedConfig(t *testing.T) {
 		t.Fatalf("Failed to write to root file: %s", err)
 	}
 
-	keyFile64, err := ioutil.TempFile(testDir, "testKey64")
+	keyFile64, err := os.CreateTemp(testDir, "testKey64")
 	if err != nil {
 		t.Fatalf("Failed to create key file: %s", err)
 	}
@@ -455,7 +455,7 @@ func TestLoadPEMEncodedConfig(t *testing.T) {
 		t.Fatalf("Failed to write to key file: %s", err)
 	}
 
-	certFile64, err := ioutil.TempFile(testDir, "testCert64")
+	certFile64, err := os.CreateTemp(testDir, "testCert64")
 	if err != nil {
 		t.Fatalf("Failed to create cert file: %s", err)
 	}
@@ -607,9 +607,7 @@ func newTLSConnection(t *testing.T, address string, crt, key, rootCert []byte) *
 
 	dialOpts = append(dialOpts, grpc.WithKeepaliveParams(kap))
 
-	ctx, cancel := context.WithTimeout(context.Background(), (5 * time.Second))
-	defer cancel()
-	conn, err := grpc.DialContext(ctx, address, dialOpts...)
+	conn, err := grpc.NewClient(address, dialOpts...)
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
 
@@ -637,7 +635,7 @@ func TestTLSClientWithChaincodeServer(t *testing.T) {
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_RSA_WITH_AES_128_GCM_SHA256, // #nosec G402
 			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
 		},
 		ClientAuth: tls.RequireAndVerifyClientCert,
@@ -701,12 +699,15 @@ func TestTLSClientWithChaincodeServer(t *testing.T) {
 				t.Fatalf("error creating server for test: %v", err)
 			}
 			defer srv.Stop()
-			go srv.Start()
+			go func() {
+				err = srv.Start()
+				assert.NoError(t, err, "srv.Start")
+			}()
 
 			conn := newTLSConnection(t, srv.Listener.Addr().String(), test.clientCert, test.clientKey, test.clientRootCert)
 			assert.NotNil(t, conn)
 
-			ccclient := peerpb.NewChaincodeClient(conn)
+			ccclient := peer.NewChaincodeClient(conn)
 			assert.NotNil(t, ccclient)
 
 			stream, err := ccclient.Connect(context.Background())

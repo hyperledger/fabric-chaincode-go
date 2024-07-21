@@ -7,3 +7,4 @@
 .#*
 .*.sw*
 /build
+cover.out

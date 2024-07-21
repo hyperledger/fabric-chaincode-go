@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/msp"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
+	"google.golang.org/protobuf/proto"
 )
 
 // stateEP implements the KeyEndorsementPolicy
@@ -35,7 +35,7 @@ func NewStateEP(policy []byte) (KeyEndorsementPolicy, error) {
 	return s, nil
 }
 
-// Policy returns the endorsement policy as bytes
+// Policy returns the endorsement policy as bytes.
 func (s *stateEP) Policy() ([]byte, error) {
 	spe, err := s.policyFromMSPIDs()
 	if err != nil {
@@ -48,7 +48,7 @@ func (s *stateEP) Policy() ([]byte, error) {
 	return spBytes, nil
 }
 
-// AddOrgs adds the specified channel orgs to the existing key-level EP
+// AddOrgs adds the specified channel orgs to the existing key-level EP.
 func (s *stateEP) AddOrgs(role RoleType, neworgs ...string) error {
 	var mspRole msp.MSPRole_MSPRoleType
 	switch role {
@@ -68,14 +68,14 @@ func (s *stateEP) AddOrgs(role RoleType, neworgs ...string) error {
 	return nil
 }
 
-// DelOrgs delete the specified channel orgs from the existing key-level EP
+// DelOrgs delete the specified channel orgs from the existing key-level EP.
 func (s *stateEP) DelOrgs(delorgs ...string) {
 	for _, delorg := range delorgs {
 		delete(s.orgs, delorg)
 	}
 }
 
-// ListOrgs returns an array of channel orgs that are required to endorse changes
+// ListOrgs returns an array of channel orgs that are required to endorse changes.
 func (s *stateEP) ListOrgs() []string {
 	orgNames := make([]string, 0, len(s.orgs))
 	for mspid := range s.orgs {

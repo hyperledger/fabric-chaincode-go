@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"time"
@@ -49,12 +48,12 @@ func LoadConfig() (Config, error) {
 	var key []byte
 	path, set := os.LookupEnv("CORE_TLS_CLIENT_KEY_FILE")
 	if set {
-		key, err = ioutil.ReadFile(path)
+		key, err = os.ReadFile(path)
 		if err != nil {
 			return Config{}, fmt.Errorf("failed to read private key file: %s", err)
 		}
 	} else {
-		data, err := ioutil.ReadFile(os.Getenv("CORE_TLS_CLIENT_KEY_PATH"))
+		data, err := os.ReadFile(os.Getenv("CORE_TLS_CLIENT_KEY_PATH"))
 		if err != nil {
 			return Config{}, fmt.Errorf("failed to read private key file: %s", err)
 		}
@@ -67,12 +66,12 @@ func LoadConfig() (Config, error) {
 	var cert []byte
 	path, set = os.LookupEnv("CORE_TLS_CLIENT_CERT_FILE")
 	if set {
-		cert, err = ioutil.ReadFile(path)
+		cert, err = os.ReadFile(path)
 		if err != nil {
 			return Config{}, fmt.Errorf("failed to read public key file: %s", err)
 		}
 	} else {
-		data, err := ioutil.ReadFile(os.Getenv("CORE_TLS_CLIENT_CERT_PATH"))
+		data, err := os.ReadFile(os.Getenv("CORE_TLS_CLIENT_CERT_PATH"))
 		if err != nil {
 			return Config{}, fmt.Errorf("failed to read public key file: %s", err)
 		}
@@ -82,7 +81,7 @@ func LoadConfig() (Config, error) {
 		}
 	}
 
-	root, err := ioutil.ReadFile(os.Getenv("CORE_PEER_TLS_ROOTCERT_FILE"))
+	root, err := os.ReadFile(os.Getenv("CORE_PEER_TLS_ROOTCERT_FILE"))
 	if err != nil {
 		return Config{}, fmt.Errorf("failed to read root cert file: %s", err)
 	}
