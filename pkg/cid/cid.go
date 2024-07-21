@@ -12,9 +12,9 @@ import (
 	"encoding/pem"
 	"fmt"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-chaincode-go/pkg/attrmgr"
-	"github.com/hyperledger/fabric-protos-go/msp"
+	"github.com/hyperledger/fabric-chaincode-go/v2/pkg/attrmgr"
+	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
+	"google.golang.org/protobuf/proto"
 )
 
 // GetID returns the ID associated with the invoking identity.  This ID
@@ -192,20 +192,23 @@ func (c *ClientID) getIdentity() (*msp.SerializedIdentity, error) {
 	sid := &msp.SerializedIdentity{}
 	creator, err := c.stub.GetCreator()
 	if err != nil || creator == nil {
-		return nil, fmt.Errorf("failed to get transaction invoker's identity from the chaincode stub: %s", err)
+		return nil, fmt.Errorf("failed to get transaction invoker's identity from the chaincode stub: %w", err)
 	}
 	err = proto.Unmarshal(creator, sid)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal transaction invoker's identity: %s", err)
+		return nil, fmt.Errorf("failed to unmarshal transaction invoker's identity: %w", err)
 	}
 	return sid, nil
 }
 
 func (c *ClientID) getAttributesFromIdemix() error {
 	creator, err := c.stub.GetCreator()
+	if err != nil || creator == nil {
+		return fmt.Errorf("failed to get transaction invoker's identity from the chaincode stub: %w", err)
+	}
 	attrs, err := attrmgr.New().GetAttributesFromIdemix(creator)
 	if err != nil {
-		return fmt.Errorf("failed to get attributes from the transaction invoker's idemix credential: %s", err)
+		return fmt.Errorf("failed to get attributes from the transaction invoker's idemix credential: %w", err)
 	}
 	c.attrs = attrs
 	return nil

@@ -4,7 +4,7 @@ package mock
 import (
 	"sync"
 
-	"github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 )
 
 type ClientStream struct {
@@ -50,15 +50,16 @@ func (fake *ClientStream) CloseSend() error {
 	ret, specificReturn := fake.closeSendReturnsOnCall[len(fake.closeSendArgsForCall)]
 	fake.closeSendArgsForCall = append(fake.closeSendArgsForCall, struct {
 	}{})
+	stub := fake.CloseSendStub
+	fakeReturns := fake.closeSendReturns
 	fake.recordInvocation("CloseSend", []interface{}{})
 	fake.closeSendMutex.Unlock()
-	if fake.CloseSendStub != nil {
-		return fake.CloseSendStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.closeSendReturns
 	return fakeReturns.result1
 }
 
@@ -102,15 +103,16 @@ func (fake *ClientStream) Recv() (*peer.ChaincodeMessage, error) {
 	ret, specificReturn := fake.recvReturnsOnCall[len(fake.recvArgsForCall)]
 	fake.recvArgsForCall = append(fake.recvArgsForCall, struct {
 	}{})
+	stub := fake.RecvStub
+	fakeReturns := fake.recvReturns
 	fake.recordInvocation("Recv", []interface{}{})
 	fake.recvMutex.Unlock()
-	if fake.RecvStub != nil {
-		return fake.RecvStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.recvReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -158,15 +160,16 @@ func (fake *ClientStream) Send(arg1 *peer.ChaincodeMessage) error {
 	fake.sendArgsForCall = append(fake.sendArgsForCall, struct {
 		arg1 *peer.ChaincodeMessage
 	}{arg1})
+	stub := fake.SendStub
+	fakeReturns := fake.sendReturns
 	fake.recordInvocation("Send", []interface{}{arg1})
 	fake.sendMutex.Unlock()
-	if fake.SendStub != nil {
-		return fake.SendStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.sendReturns
 	return fakeReturns.result1
 }
 

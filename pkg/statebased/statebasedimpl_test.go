@@ -6,11 +6,11 @@ package statebased_test
 import (
 	"testing"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/hyperledger/fabric-chaincode-go/pkg/statebased"
-	"github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/msp"
+	"github.com/hyperledger/fabric-chaincode-go/v2/pkg/statebased"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestAddOrg(t *testing.T) {
@@ -40,6 +40,7 @@ func TestListOrgs(t *testing.T) {
 
 	// retrieve the orgs
 	ep, err := statebased.NewStateEP(expectedEPBytes)
+	assert.NoError(t, err, "NewStateEP")
 	orgs := ep.ListOrgs()
 	assert.Equal(t, []string{"Org1"}, orgs)
 }
@@ -49,13 +50,15 @@ func TestDelAddOrg(t *testing.T) {
 	expectedEPBytes, err := proto.Marshal(expectedEP)
 	assert.NoError(t, err)
 	ep, err := statebased.NewStateEP(expectedEPBytes)
+	assert.NoError(t, err)
 
 	// retrieve the orgs
 	orgs := ep.ListOrgs()
 	assert.Equal(t, []string{"Org1"}, orgs)
 
 	// mod the endorsement policy
-	ep.AddOrgs(statebased.RoleTypePeer, "Org2")
+	err = ep.AddOrgs(statebased.RoleTypePeer, "Org2")
+	assert.NoError(t, err)
 	ep.DelOrgs("Org1")
 
 	// check whether what is stored is correct

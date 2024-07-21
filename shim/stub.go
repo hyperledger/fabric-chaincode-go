@@ -11,11 +11,11 @@ import (
 	"os"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric-protos-go/ledger/queryresult"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/ledger/queryresult"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // ChaincodeStub is an object passed to chaincode for shim side handling of
@@ -23,11 +23,11 @@ import (
 type ChaincodeStub struct {
 	TxID                       string
 	ChannelID                  string
-	chaincodeEvent             *pb.ChaincodeEvent
+	chaincodeEvent             *peer.ChaincodeEvent
 	args                       [][]byte
 	handler                    *Handler
-	signedProposal             *pb.SignedProposal
-	proposal                   *pb.Proposal
+	signedProposal             *peer.SignedProposal
+	proposal                   *peer.Proposal
 	validationParameterMetakey string
 
 	// Additional fields extracted from the signedProposal
@@ -40,7 +40,7 @@ type ChaincodeStub struct {
 
 // ChaincodeInvocation functionality
 
-func newChaincodeStub(handler *Handler, channelID, txid string, input *pb.ChaincodeInput, signedProposal *pb.SignedProposal) (*ChaincodeStub, error) {
+func newChaincodeStub(handler *Handler, channelID, txid string, input *peer.ChaincodeInput, signedProposal *peer.SignedProposal) (*ChaincodeStub, error) {
 	stub := &ChaincodeStub{
 		TxID:                       txid,
 		ChannelID:                  channelID,
@@ -48,7 +48,7 @@ func newChaincodeStub(handler *Handler, channelID, txid string, input *pb.Chainc
 		handler:                    handler,
 		signedProposal:             signedProposal,
 		decorations:                input.Decorations,
-		validationParameterMetakey: pb.MetaDataKeys_VALIDATION_PARAMETER.String(),
+		validationParameterMetakey: peer.MetaDataKeys_VALIDATION_PARAMETER.String(),
 	}
 
 	// TODO: sanity check: verify that every call to init with a nil
@@ -57,7 +57,7 @@ func newChaincodeStub(handler *Handler, channelID, txid string, input *pb.Chainc
 	if signedProposal != nil {
 		var err error
 
-		stub.proposal = &pb.Proposal{}
+		stub.proposal = &peer.Proposal{}
 		err = proto.Unmarshal(signedProposal.ProposalBytes, stub.proposal)
 		if err != nil {
 
@@ -100,8 +100,8 @@ func newChaincodeStub(handler *Handler, channelID, txid string, input *pb.Chainc
 		}
 		stub.creator = shdr.GetCreator()
 
-		// extract transient data from proposal payload
-		payload := &pb.ChaincodeProposalPayload{}
+		// extract trasient data from proposal payload
+		payload := &peer.ChaincodeProposalPayload{}
 		if err := proto.Unmarshal(stub.proposal.GetPayload(), payload); err != nil {
 			return nil, fmt.Errorf("failed to extract proposal payload: %s", err)
 		}
@@ -148,7 +148,7 @@ func GetMSPID() (string, error) {
 // ------------- Call Chaincode functions ---------------
 
 // InvokeChaincode documentation can be found in interfaces.go
-func (s *ChaincodeStub) InvokeChaincode(chaincodeName string, args [][]byte, channel string) pb.Response {
+func (s *ChaincodeStub) InvokeChaincode(chaincodeName string, args [][]byte, channel string) *peer.Response {
 	// Internally we handle chaincode name as a composite name
 	if channel != "" {
 		chaincodeName = chaincodeName + "/" + channel
@@ -192,7 +192,7 @@ func (s *ChaincodeStub) PutState(key string, value []byte) error {
 	return s.handler.handlePutState(collection, key, value, s.ChannelID, s.TxID)
 }
 
-func (s *ChaincodeStub) createStateQueryIterator(response *pb.QueryResponse) *StateQueryIterator {
+func (s *ChaincodeStub) createStateQueryIterator(response *peer.QueryResponse) *StateQueryIterator {
 	return &StateQueryIterator{
 		CommonIterator: &CommonIterator{
 			handler:    s.handler,
@@ -343,7 +343,7 @@ type CommonIterator struct {
 	handler    *Handler
 	channelID  string
 	txid       string
-	response   *pb.QueryResponse
+	response   *peer.QueryResponse
 	currentLoc int
 }
 
@@ -372,8 +372,8 @@ const (
 	HistoryQueryResult
 )
 
-func createQueryResponseMetadata(metadataBytes []byte) (*pb.QueryResponseMetadata, error) {
-	metadata := &pb.QueryResponseMetadata{}
+func createQueryResponseMetadata(metadataBytes []byte) (*peer.QueryResponseMetadata, error) {
+	metadata := &peer.QueryResponseMetadata{}
 	err := proto.Unmarshal(metadataBytes, metadata)
 	if err != nil {
 		return nil, err
@@ -383,7 +383,7 @@ func createQueryResponseMetadata(metadataBytes []byte) (*pb.QueryResponseMetadat
 }
 
 func (s *ChaincodeStub) handleGetStateByRange(collection, startKey, endKey string,
-	metadata []byte) (StateQueryIteratorInterface, *pb.QueryResponseMetadata, error) {
+	metadata []byte) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error) {
 
 	response, err := s.handler.handleGetStateByRange(collection, startKey, endKey, metadata, s.ChannelID, s.TxID)
 	if err != nil {
@@ -400,7 +400,7 @@ func (s *ChaincodeStub) handleGetStateByRange(collection, startKey, endKey strin
 }
 
 func (s *ChaincodeStub) handleGetQueryResult(collection, query string,
-	metadata []byte) (StateQueryIteratorInterface, *pb.QueryResponseMetadata, error) {
+	metadata []byte) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error) {
 
 	response, err := s.handler.handleGetQueryResult(collection, query, metadata, s.ChannelID, s.TxID)
 	if err != nil {
@@ -493,7 +493,7 @@ func validateCompositeKeyAttribute(str string) error {
 
 // To ensure that simple keys do not go into composite key namespace,
 // we validate simplekey to check whether the key starts with 0x00 (which
-// is the namespace for compositeKey). This helps in avoiding simple/composite
+// is the namespace for compositeKey). This helps in avoding simple/composite
 // key collisions.
 func validateSimpleKeys(simpleKeys ...string) error {
 	for _, key := range simpleKeys {
@@ -519,7 +519,7 @@ func (s *ChaincodeStub) GetStateByPartialCompositeKey(objectType string, attribu
 
 func createQueryMetadata(pageSize int32, bookmark string) ([]byte, error) {
 	// Construct the QueryMetadata with a page size and a bookmark needed for pagination
-	metadata := &pb.QueryMetadata{PageSize: pageSize, Bookmark: bookmark}
+	metadata := &peer.QueryMetadata{PageSize: pageSize, Bookmark: bookmark}
 	metadataBytes, err := proto.Marshal(metadata)
 	if err != nil {
 		return nil, err
@@ -529,7 +529,7 @@ func createQueryMetadata(pageSize int32, bookmark string) ([]byte, error) {
 
 // GetStateByRangeWithPagination ...
 func (s *ChaincodeStub) GetStateByRangeWithPagination(startKey, endKey string, pageSize int32,
-	bookmark string) (StateQueryIteratorInterface, *pb.QueryResponseMetadata, error) {
+	bookmark string) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error) {
 
 	if startKey == "" {
 		startKey = emptyKeySubstitute
@@ -550,7 +550,7 @@ func (s *ChaincodeStub) GetStateByRangeWithPagination(startKey, endKey string, p
 
 // GetStateByPartialCompositeKeyWithPagination ...
 func (s *ChaincodeStub) GetStateByPartialCompositeKeyWithPagination(objectType string, keys []string,
-	pageSize int32, bookmark string) (StateQueryIteratorInterface, *pb.QueryResponseMetadata, error) {
+	pageSize int32, bookmark string) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error) {
 
 	collection := ""
 
@@ -568,7 +568,7 @@ func (s *ChaincodeStub) GetStateByPartialCompositeKeyWithPagination(objectType s
 
 // GetQueryResultWithPagination ...
 func (s *ChaincodeStub) GetQueryResultWithPagination(query string, pageSize int32,
-	bookmark string) (StateQueryIteratorInterface, *pb.QueryResponseMetadata, error) {
+	bookmark string) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error) {
 	// Access public data by setting the collection to empty string
 	collection := ""
 
@@ -609,7 +609,7 @@ func (iter *CommonIterator) HasNext() bool {
 // or KeyModification depending on the result type (i.e., state (range/execute)
 // query, history query). Note that queryResult is an empty golang
 // interface that can hold values of any type.
-func (iter *CommonIterator) getResultFromBytes(queryResultBytes *pb.QueryResultBytes,
+func (iter *CommonIterator) getResultFromBytes(queryResultBytes *peer.QueryResultBytes,
 	rType resultType) (queryResult, error) {
 
 	if rType == StateQueryResult {
@@ -718,7 +718,7 @@ func (s *ChaincodeStub) GetBinding() ([]byte, error) {
 }
 
 // GetSignedProposal documentation can be found in interfaces.go
-func (s *ChaincodeStub) GetSignedProposal() (*pb.SignedProposal, error) {
+func (s *ChaincodeStub) GetSignedProposal() (*peer.SignedProposal, error) {
 	return s.signedProposal, nil
 }
 
@@ -733,7 +733,7 @@ func (s *ChaincodeStub) GetArgsSlice() ([]byte, error) {
 }
 
 // GetTxTimestamp documentation can be found in interfaces.go
-func (s *ChaincodeStub) GetTxTimestamp() (*timestamp.Timestamp, error) {
+func (s *ChaincodeStub) GetTxTimestamp() (*timestamppb.Timestamp, error) {
 	hdr := &common.Header{}
 	if err := proto.Unmarshal(s.proposal.Header, hdr); err != nil {
 		return nil, fmt.Errorf("error unmarshaling Header: %s", err)
@@ -754,6 +754,6 @@ func (s *ChaincodeStub) SetEvent(name string, payload []byte) error {
 	if name == "" {
 		return errors.New("event name can not be empty string")
 	}
-	s.chaincodeEvent = &pb.ChaincodeEvent{EventName: name, Payload: payload}
+	s.chaincodeEvent = &peer.ChaincodeEvent{EventName: name, Payload: payload}
 	return nil
 }

@@ -8,9 +8,10 @@ import (
 	"crypto/tls"
 	"time"
 
-	peerpb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 )
 
@@ -29,8 +30,6 @@ func NewClientConn(
 
 	dialOpts := []grpc.DialOption{
 		grpc.WithKeepaliveParams(kaOpts),
-		grpc.WithBlock(),
-		grpc.FailOnNonTempDialError(true),
 		grpc.WithDefaultCallOptions(
 			grpc.MaxCallRecvMsgSize(maxRecvMessageSize),
 			grpc.MaxCallSendMsgSize(maxSendMessageSize),
@@ -41,15 +40,13 @@ func NewClientConn(
 		creds := credentials.NewTLS(tlsConf)
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(creds))
 	} else {
-		dialOpts = append(dialOpts, grpc.WithInsecure())
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), dialTimeout)
-	defer cancel()
-	return grpc.DialContext(ctx, address, dialOpts...)
+	return grpc.NewClient(address, dialOpts...)
 }
 
 // NewRegisterClient ...
-func NewRegisterClient(conn *grpc.ClientConn) (peerpb.ChaincodeSupport_RegisterClient, error) {
-	return peerpb.NewChaincodeSupportClient(conn).Register(context.Background())
+func NewRegisterClient(conn *grpc.ClientConn) (peer.ChaincodeSupport_RegisterClient, error) {
+	return peer.NewChaincodeSupportClient(conn).Register(context.Background())
 }

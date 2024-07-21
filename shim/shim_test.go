@@ -9,11 +9,19 @@ import (
 	"os"
 	"testing"
 
-	"github.com/hyperledger/fabric-chaincode-go/shim/internal/mock"
-	peerpb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-chaincode-go/v2/shim/internal/mock"
+	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 
 	"github.com/stretchr/testify/assert"
 )
+
+// MockQueryIteratorInterface allows a chaincode to iterate over a set of
+// key/value pairs returned by range query.
+// TODO: Once the execute query and history query are implemented in MockStub,
+// we need to update this interface
+type MockQueryIteratorInterface interface {
+	StateQueryIteratorInterface
+}
 
 func TestStart(t *testing.T) {
 
@@ -52,7 +60,7 @@ func TestStart(t *testing.T) {
 				"CORE_PEER_TLS_ENABLED":  "false",
 			},
 			peerAddress: "127.0.0.1:12345",
-			expectedErr: `connection error: desc = "transport: error while dialing: dial tcp 127.0.0.1:12345: connect: connection refused"`,
+			expectedErr: `rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp 127.0.0.1:12345: connect: connection refused"`,
 		},
 		{
 			name: "Chat - Nil Message",
@@ -106,8 +114,8 @@ func TestStart(t *testing.T) {
 				stream := &mock.ClientStream{}
 				stream.RecvReturnsOnCall(
 					0,
-					&peerpb.ChaincodeMessage{
-						Type: peerpb.ChaincodeMessage_READY,
+					&peer.ChaincodeMessage{
+						Type: peer.ChaincodeMessage_READY,
 						Txid: "txid",
 					},
 					nil,
