@@ -78,13 +78,13 @@ func TestMessageSizes(t *testing.T) {
 	regClient, err := NewRegisterClient(client)
 	assert.NoError(t, err, "failed to create register client")
 
-	t.Run("acceptable messaages", func(t *testing.T) {
+	t.Run("acceptable messages", func(t *testing.T) {
 		acceptableMessage := &peer.ChaincodeMessage{
 			Payload: make([]byte, maxSendMessageSize-100),
 		}
 		sendMessages <- acceptableMessage
 		err = regClient.Send(acceptableMessage)
-		assert.NoError(t, err, "sending messge below size threshold failed")
+		assert.NoError(t, err, "sending message below size threshold failed")
 
 		select {
 		case m := <-receivedMessages:
@@ -103,7 +103,7 @@ func TestMessageSizes(t *testing.T) {
 			Payload: make([]byte, maxSendMessageSize+1),
 		}
 		err = regClient.Send(&peer.ChaincodeMessage{})
-		assert.NoError(t, err, "sending messge below size threshold should succeed")
+		assert.NoError(t, err, "sending message below size threshold should succeed")
 
 		select {
 		case m := <-receivedMessages:
@@ -121,7 +121,7 @@ func TestMessageSizes(t *testing.T) {
 			Payload: make([]byte, maxSendMessageSize+1),
 		}
 		err = regClient.Send(tooBig)
-		assert.Error(t, err, "sending messge above size threshold should fail")
+		assert.Error(t, err, "sending message above size threshold should fail")
 	})
 
 	err = lis.Close()
