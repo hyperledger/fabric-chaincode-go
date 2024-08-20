@@ -9,7 +9,6 @@ import (
 
 	"github.com/hyperledger/fabric-chaincode-go/v2/shim/internal/mock"
 	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -49,6 +48,8 @@ func TestNewHandler_CreatedState(t *testing.T) {
 		cc:               cc,
 		responseChannels: map[string]chan *peer.ChaincodeMessage{},
 		state:            created,
+		batch:            map[string]map[string]*peer.WriteRecord{},
+		startWriteBatch:  map[string]bool{},
 	}
 
 	handler := newChaincodeHandler(chatStream, cc)
@@ -125,7 +126,7 @@ func TestHandlerState(t *testing.T) {
 			}
 			err := handler.handleMessage(test.msg, nil)
 			if test.expectedErr != "" {
-				assert.Contains(t, err.Error(), test.expectedErr)
+				assert.ErrorContains(t, err, test.expectedErr)
 			} else {
 				assert.NoError(t, err)
 			}
@@ -217,7 +218,7 @@ func TestHandleMessage(t *testing.T) {
 
 			err := handler.handleMessage(test.msg, nil)
 			if test.expectedErr != "" {
-				assert.Contains(t, err.Error(), test.expectedErr)
+				assert.ErrorContains(t, err, test.expectedErr)
 			} else {
 				if err != nil {
 					t.Fatalf("Unexpected error for '%s': %s", test.name, err)
@@ -264,36 +265,36 @@ func TestHandlePeerCalls(t *testing.T) {
 	// force error by removing responseChannels
 	h.responseChannels = nil
 	_, err = h.handleGetState("col", "key", "channel", "txid")
-	assert.Contains(t, err.Error(), "[txid] error sending GET_STATE")
+	assert.ErrorContains(t, err, "[txid] error sending GET_STATE")
 
 	_, err = h.handleGetPrivateDataHash("col", "key", "channel", "txid")
-	assert.Contains(t, err.Error(), "[txid] error sending GET_PRIVATE_DATA_HASH")
+	assert.ErrorContains(t, err, "[txid] error sending GET_PRIVATE_DATA_HASH")
 
 	_, err = h.handleGetStateMetadata("col", "key", "channel", "txid")
-	assert.Contains(t, err.Error(), "[txid] error sending GET_STATE_METADATA")
+	assert.ErrorContains(t, err, "[txid] error sending GET_STATE_METADATA")
 
 	err = h.handlePutState("col", "key", []byte{}, "channel", "txid")
-	assert.Contains(t, err.Error(), "[txid] error sending PUT_STATE")
+	assert.ErrorContains(t, err, "[txid] error sending PUT_STATE")
 
 	err = h.handlePutStateMetadataEntry("col", "key", "mkey", []byte{}, "channel", "txid")
-	assert.Contains(t, err.Error(), "[txid] error sending PUT_STATE_METADATA")
+	assert.ErrorContains(t, err, "[txid] error sending PUT_STATE_METADATA")
 
 	err = h.handleDelState("col", "key", "channel", "txid")
-	assert.Contains(t, err.Error(), "[txid] error sending DEL_STATE")
+	assert.ErrorContains(t, err, "[txid] error sending DEL_STATE")
 
 	_, err = h.handleGetStateByRange("col", "start", "end", []byte{}, "channel", "txid")
-	assert.Contains(t, err.Error(), "[txid] error sending GET_STATE_BY_RANGE")
+	assert.ErrorContains(t, err, "[txid] error sending GET_STATE_BY_RANGE")
 
 	_, err = h.handleQueryStateNext("id", "channel", "txid")
-	assert.Contains(t, err.Error(), "cannot create response channel")
+	assert.ErrorContains(t, err, "cannot create response channel")
 
 	_, err = h.handleQueryStateClose("id", "channel", "txid")
-	assert.Contains(t, err.Error(), "cannot create response channel")
+	assert.ErrorContains(t, err, "cannot create response channel")
 
 	_, err = h.handleGetQueryResult("col", "query", []byte{}, "channel", "txid")
-	assert.Contains(t, err.Error(), "[txid] error sending GET_QUERY_RESULT")
+	assert.ErrorContains(t, err, "[txid] error sending GET_QUERY_RESULT")
 
 	_, err = h.handleGetHistoryForKey("key", "channel", "txid")
-	assert.Contains(t, err.Error(), "cannot create response channel")
+	assert.ErrorContains(t, err, "cannot create response channel")
 
 }

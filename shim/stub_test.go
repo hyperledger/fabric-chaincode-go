@@ -6,7 +6,6 @@ package shim
 import (
 	"crypto/sha256"
 	"encoding/binary"
-	"os"
 	"testing"
 
 	"github.com/hyperledger/fabric-chaincode-go/v2/shim/internal/mock"
@@ -245,13 +244,11 @@ func TestGetMSPID(t *testing.T) {
 	_, err := GetMSPID()
 	assert.EqualError(t, err, "'CORE_PEER_LOCALMSPID' is not set")
 
-	os.Setenv("CORE_PEER_LOCALMSPID", "mspid")
+	t.Setenv("CORE_PEER_LOCALMSPID", "mspid")
 
 	mspid, err := GetMSPID()
 	assert.NoError(t, err)
 	assert.Equal(t, "mspid", mspid)
-
-	os.Unsetenv("CORE_PEER_LOCALMSPID")
 }
 
 func TestChaincodeStubHandlers(t *testing.T) {
@@ -317,6 +314,41 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				err = s.PurgePrivateData("", "key")
 				assert.EqualError(t, err, "collection must not be an empty string")
 
+			},
+		},
+		{
+			name:    "Simple Response with WriteBatch",
+			resType: peer.ChaincodeMessage_RESPONSE,
+			payload: []byte("myvalue"),
+			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
+				s.StartWriteBatch() //nolint:errcheck
+				err := s.PutState("key", payload)
+				assert.NoError(t, err)
+				err = s.PutPrivateData("col", "key", payload)
+				assert.NoError(t, err)
+				err = s.SetStateValidationParameter("key", payload)
+				assert.NoError(t, err)
+				err = s.SetPrivateDataValidationParameter("col", "key", payload)
+				assert.NoError(t, err)
+				err = s.DelState("key")
+				assert.NoError(t, err)
+				err = s.DelPrivateData("col", "key")
+				assert.NoError(t, err)
+				err = s.PurgePrivateData("col", "key")
+				assert.NoError(t, err)
+				err = s.FinishWriteBatch()
+				assert.NoError(t, err)
+
+				s.StartWriteBatch() //nolint:errcheck
+				s.StartWriteBatch() //nolint:errcheck
+				err = s.PutState("key", payload)
+				assert.NoError(t, err)
+				err = s.PutPrivateData("col", "key", payload)
+				assert.NoError(t, err)
+				err = s.FinishWriteBatch()
+				assert.NoError(t, err)
+				err = s.FinishWriteBatch()
+				assert.NoError(t, err)
 			},
 		},
 		{
@@ -577,6 +609,14 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				resp := s.InvokeChaincode("cc", [][]byte{}, "channel")
 				assert.Equal(t, payload, resp.GetPayload())
 
+				s.StartWriteBatch() //nolint:errcheck
+				s.StartWriteBatch() //nolint:errcheck
+				err = s.PutState("key", payload)
+				assert.NoError(t, err)
+				err = s.FinishWriteBatch()
+				assert.ErrorContains(t, err, string(payload))
+				err = s.FinishWriteBatch()
+				assert.NoError(t, err)
 			},
 		},
 	}
@@ -587,9 +627,13 @@ func TestChaincodeStubHandlers(t *testing.T) {
 			t.Parallel()
 
 			handler := &Handler{
-				cc:               &mockChaincode{},
-				responseChannels: map[string]chan *peer.ChaincodeMessage{},
-				state:            ready,
+				cc:                &mockChaincode{},
+				responseChannels:  map[string]chan *peer.ChaincodeMessage{},
+				state:             ready,
+				batch:             map[string]map[string]*peer.WriteRecord{},
+				startWriteBatch:   map[string]bool{},
+				usePeerWriteBatch: true,
+				maxSizeWriteBatch: 100,
 			}
 			stub := &ChaincodeStub{
 				ChannelID:                  "channel",

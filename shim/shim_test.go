@@ -11,7 +11,6 @@ import (
 
 	"github.com/hyperledger/fabric-chaincode-go/v2/shim/internal/mock"
 	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
-
 	"github.com/stretchr/testify/assert"
 )
 
