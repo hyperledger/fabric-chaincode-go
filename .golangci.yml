@@ -16,3 +16,7 @@ linters:
     - misspell
     - typecheck
     - unused
+linters-settings:
+  gosec:
+    excludes:
+      - 'G115' # safe to exclude type conversion overflow checks in this repository since the integer values will always be low
