@@ -3,7 +3,7 @@ module github.com/hyperledger/fabric-chaincode-go/v2
 go 1.21.0
 
 require (
-	github.com/hyperledger/fabric-protos-go-apiv2 v0.3.4
+	github.com/hyperledger/fabric-protos-go-apiv2 v0.3.5
 	github.com/stretchr/testify v1.10.0
 	google.golang.org/grpc v1.67.1
 	google.golang.org/protobuf v1.36.2
