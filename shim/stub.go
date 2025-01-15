@@ -582,7 +582,7 @@ func (s *ChaincodeStub) GetQueryResultWithPagination(query string, pageSize int3
 // --------- Batch State functions ----------
 
 // StartWriteBatch documentation can be found in interfaces.go
-func (s *ChaincodeStub) StartWriteBatch() error {
+func (s *ChaincodeStub) StartWriteBatch() (isBatchEnabled bool) {
 	return s.handler.handleStartWriteBatch(s.ChannelID, s.TxID)
 }
 

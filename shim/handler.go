@@ -544,9 +544,9 @@ func (h *Handler) sendBatch(channelID string, txid string) error {
 	return nil
 }
 
-func (h *Handler) handleStartWriteBatch(channelID string, txID string) error {
+func (h *Handler) handleStartWriteBatch(channelID string, txID string) (isBatchEnabled bool) {
 	if !h.usePeerWriteBatch {
-		return errors.New("peer does not support write batch")
+		return false
 	}
 
 	txCtxID := transactionContextID(channelID, txID)
@@ -554,7 +554,7 @@ func (h *Handler) handleStartWriteBatch(channelID string, txID string) error {
 	defer h.startWriteBatchMutex.Unlock()
 
 	h.startWriteBatch[txCtxID] = true
-	return nil
+	return true
 }
 
 func (h *Handler) handleFinishWriteBatch(channelID string, txID string) error {

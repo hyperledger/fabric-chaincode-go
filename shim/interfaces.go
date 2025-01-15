@@ -374,8 +374,9 @@ type ChaincodeStubInterface interface {
 	// StartWriteBatch enables a mode where all changes are not immediately forwarded to the feast,
 	// but accumulate in the cache. The cache is sent in large batches either at the end of transaction
 	// execution or after the FinishWriteBatch call.
+	// StartWriteBatch returns a bool indication (isBatchEnabled) that the peer supports or does not support writing by batches.
 	// IMPORTANT: in this mode, the expected order of transaction execution and expected errors can be changed.
-	StartWriteBatch() error
+	StartWriteBatch() (isBatchEnabled bool)
 
 	// FinishWriteBatch sends accumulated changes in large batches to the peer
 	// if StartWriteBatch has been called before it.
