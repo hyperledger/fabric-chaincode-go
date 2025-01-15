@@ -371,19 +371,15 @@ type ChaincodeStubInterface interface {
 	// The marshaled ChaincodeEvent will be available in the transaction's ChaincodeAction.events field.
 	SetEvent(name string, payload []byte) error
 
-	// StartWriteBatch enables a mode where all changes are not immediately forwarded to the feast,
+	// StartWriteBatch enables a mode where all changes are not immediately forwarded to the peer,
 	// but accumulate in the cache. The cache is sent in large batches either at the end of transaction
 	// execution or after the FinishWriteBatch call.
 	// IMPORTANT: in this mode, the expected order of transaction execution and expected errors can be changed.
-	StartWriteBatch() error
+	StartWriteBatch()
 
 	// FinishWriteBatch sends accumulated changes in large batches to the peer
 	// if StartWriteBatch has been called before it.
 	FinishWriteBatch() error
-
-	// ResetWriteBatch clears the accumulated segment of changes, but does not cancel the batches writing mode.
-	// After ResetWriteBatch, the changes will be written to the batches
-	ResetWriteBatch()
 }
 
 // CommonIteratorInterface allows a chaincode to check whether any more result

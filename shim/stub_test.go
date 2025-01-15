@@ -321,7 +321,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 			resType: peer.ChaincodeMessage_RESPONSE,
 			payload: []byte("myvalue"),
 			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
-				s.StartWriteBatch() //nolint:errcheck
+				s.StartWriteBatch()
 				err := s.PutState("key", payload)
 				assert.NoError(t, err)
 				err = s.PutPrivateData("col", "key", payload)
@@ -339,8 +339,8 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				err = s.FinishWriteBatch()
 				assert.NoError(t, err)
 
-				s.StartWriteBatch() //nolint:errcheck
-				s.StartWriteBatch() //nolint:errcheck
+				s.StartWriteBatch()
+				s.StartWriteBatch()
 				err = s.PutState("key", payload)
 				assert.NoError(t, err)
 				err = s.PutPrivateData("col", "key", payload)
@@ -609,8 +609,8 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				resp := s.InvokeChaincode("cc", [][]byte{}, "channel")
 				assert.Equal(t, payload, resp.GetPayload())
 
-				s.StartWriteBatch() //nolint:errcheck
-				s.StartWriteBatch() //nolint:errcheck
+				s.StartWriteBatch()
+				s.StartWriteBatch()
 				err = s.PutState("key", payload)
 				assert.NoError(t, err)
 				err = s.FinishWriteBatch()
