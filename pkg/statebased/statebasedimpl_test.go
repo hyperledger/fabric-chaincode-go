@@ -22,7 +22,7 @@ func TestAddOrg(t *testing.T) {
 
 	// bad role type
 	err = ep.AddOrgs("unknown", "Org1")
-	assert.Equal(t, &statebased.RoleTypeDoesNotExistError{RoleType: statebased.RoleType("unknown")}, err)
+	assert.Equal(t, &statebased.RoleTypeDoesNotExistError{RoleType: "unknown"}, err)
 	assert.EqualError(t, err, "role type unknown does not exist")
 
 	epBytes, err := ep.Policy()

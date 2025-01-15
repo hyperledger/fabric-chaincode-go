@@ -312,8 +312,8 @@ type ChaincodeStubInterface interface {
 	// Call Close() on the returned StateQueryIteratorInterface object when done.
 	// The query is re-executed during validation phase to ensure result set
 	// has not changed since transaction endorsement (phantom reads detected). This function should be used only for
-	//a partial composite key. For a full composite key, an iter with empty response
-	//would be returned.
+	// a partial composite key. For a full composite key, an iter with empty response
+	// would be returned.
 	GetPrivateDataByPartialCompositeKey(collection, objectType string, keys []string) (StateQueryIteratorInterface, error)
 
 	// GetPrivateDataQueryResult performs a "rich" query against a given private
@@ -370,6 +370,20 @@ type ChaincodeStubInterface interface {
 	// from the outer-most invoked chaincode in chaincode-to-chaincode scenarios.
 	// The marshaled ChaincodeEvent will be available in the transaction's ChaincodeAction.events field.
 	SetEvent(name string, payload []byte) error
+
+	// StartWriteBatch enables a mode where all changes are not immediately forwarded to the feast,
+	// but accumulate in the cache. The cache is sent in large batches either at the end of transaction
+	// execution or after the FinishWriteBatch call.
+	// IMPORTANT: in this mode, the expected order of transaction execution and expected errors can be changed.
+	StartWriteBatch() error
+
+	// FinishWriteBatch sends accumulated changes in large batches to the peer
+	// if StartWriteBatch has been called before it.
+	FinishWriteBatch() error
+
+	// ResetWriteBatch clears the accumulated segment of changes, but does not cancel the batches writing mode.
+	// After ResetWriteBatch, the changes will be written to the batches
+	ResetWriteBatch()
 }
 
 // CommonIteratorInterface allows a chaincode to check whether any more result

@@ -579,6 +579,23 @@ func (s *ChaincodeStub) GetQueryResultWithPagination(query string, pageSize int3
 	return s.handleGetQueryResult(collection, query, metadata)
 }
 
+// --------- Batch State functions ----------
+
+// StartWriteBatch documentation can be found in interfaces.go
+func (s *ChaincodeStub) StartWriteBatch() error {
+	return s.handler.handleStartWriteBatch(s.ChannelID, s.TxID)
+}
+
+// FinishWriteBatch documentation can be found in interfaces.go
+func (s *ChaincodeStub) FinishWriteBatch() error {
+	return s.handler.handleFinishWriteBatch(s.ChannelID, s.TxID)
+}
+
+// ResetWriteBatch documentation can be found in interfaces.go
+func (s *ChaincodeStub) ResetWriteBatch() {
+	s.handler.handleResetWriteBatch(s.ChannelID, s.TxID)
+}
+
 // Next ...
 func (iter *StateQueryIterator) Next() (*queryresult.KV, error) {
 	result, err := iter.nextResult(StateQueryResult)
