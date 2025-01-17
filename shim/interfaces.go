@@ -375,10 +375,16 @@ type ChaincodeStubInterface interface {
 	// but accumulate in the cache. The cache is sent in large batches either at the end of transaction
 	// execution or after the FinishWriteBatch call.
 	// IMPORTANT: in this mode, the expected order of transaction execution and expected errors can be changed.
+	//
+	// If write batching is not supported by the peer, this method has no effect
+	// and writes to the ledger continue to be processed immediately.
 	StartWriteBatch()
 
 	// FinishWriteBatch sends accumulated changes in large batches to the peer
 	// if StartWriteBatch has been called before it.
+	//
+	// If write batching is not supported by the peer or no write batch has been
+	// started, this method has no effect and returns nil.
 	FinishWriteBatch() error
 }
 
