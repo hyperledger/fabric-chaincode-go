@@ -19,9 +19,7 @@ const (
 	established state = "established" // connection established
 	ready       state = "ready"       // ready for requests
 
-	defaultMaxSizeWriteBatch  = 100
-	prefixMetaDataWriteBatch  = "m"
-	prefixStateDataWriteBatch = "s"
+	defaultMaxSizeWriteBatch = 100
 )
 
 // PeerChaincodeStream is the common stream interface for Peer - chaincode communication.
@@ -426,7 +424,11 @@ func (h *Handler) handlePurgeState(collection string, key string, channelID stri
 }
 
 // handleWriteBatch communicates with the peer to write batch to state all changes information into the ledger.
-func (h *Handler) handleWriteBatch(batch *peer.WriteBatchState, channelID string, txid string) error {
+func (h *Handler) handleWriteBatch(writes []*peer.WriteRecord, channelID string, txid string) error {
+	batch := &peer.WriteBatchState{
+		Rec: writes,
+	}
+
 	// Construct payload for PUT_STATE_BATCH
 	payloadBytes := marshalOrPanic(batch)
 
@@ -453,21 +455,14 @@ func (h *Handler) handleWriteBatch(batch *peer.WriteBatchState, channelID string
 }
 
 func (h *Handler) sendBatch(channelID string, txid string, writes []*peer.WriteRecord) error {
-	batch := &peer.WriteBatchState{}
-	for _, kv := range writes {
-		batch.Rec = append(batch.Rec, kv)
-		if len(batch.Rec) >= int(h.maxSizeWriteBatch) {
-			err := h.handleWriteBatch(batch, channelID, txid)
-			if err != nil {
-				return fmt.Errorf("failed send batch: %s", err)
-			}
-			batch.Rec = batch.Rec[:0]
+	for ; len(writes) > int(h.maxSizeWriteBatch); writes = writes[h.maxSizeWriteBatch:] {
+		if err := h.handleWriteBatch(writes[:h.maxSizeWriteBatch], channelID, txid); err != nil {
+			return fmt.Errorf("failed send batch: %s", err)
 		}
 	}
 
-	if len(batch.Rec) != 0 {
-		err := h.handleWriteBatch(batch, channelID, txid)
-		if err != nil {
+	if len(writes) > 0 {
+		if err := h.handleWriteBatch(writes, channelID, txid); err != nil {
 			return fmt.Errorf("failed send batch: %s", err)
 		}
 	}

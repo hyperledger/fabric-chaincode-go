@@ -623,7 +623,7 @@ func (s *ChaincodeStub) GetQueryResultWithPagination(query string, pageSize int3
 
 // StartWriteBatch documentation can be found in interfaces.go
 func (s *ChaincodeStub) StartWriteBatch() {
-	if s.writeBatch == nil {
+	if s.handler.usePeerWriteBatch && s.writeBatch == nil {
 		s.writeBatch = newWriteBatch()
 	}
 }

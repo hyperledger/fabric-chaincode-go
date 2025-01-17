@@ -7,13 +7,19 @@ import (
 	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 )
 
+type batchKey struct {
+	Collection string
+	Key        string
+	Type       peer.WriteRecord_Type
+}
+
 type writeBatch struct {
-	writes map[string]*peer.WriteRecord
+	writes map[batchKey]*peer.WriteRecord
 }
 
 func newWriteBatch() *writeBatch {
 	return &writeBatch{
-		writes: make(map[string]*peer.WriteRecord),
+		writes: make(map[batchKey]*peer.WriteRecord),
 	}
 }
 
@@ -31,39 +37,44 @@ func (b *writeBatch) Writes() []*peer.WriteRecord {
 }
 
 func (b *writeBatch) PutState(collection string, key string, value []byte) {
-	b.writes[batchLedgerKey(collection, key)] = &peer.WriteRecord{
+	b.write(&peer.WriteRecord{
 		Key:        key,
 		Value:      value,
 		Collection: collection,
 		Type:       peer.WriteRecord_PUT_STATE,
-	}
+	})
 }
 
 func (b *writeBatch) PutStateMetadataEntry(collection string, key string, metakey string, metadata []byte) {
-	b.writes[batchLedgerKey(collection, key)] = &peer.WriteRecord{
+	b.write(&peer.WriteRecord{
 		Key:        key,
 		Collection: collection,
 		Metadata:   &peer.StateMetadata{Metakey: metakey, Value: metadata},
 		Type:       peer.WriteRecord_PUT_STATE_METADATA,
-	}
+	})
 }
 
 func (b *writeBatch) DelState(collection string, key string) {
-	b.writes[batchLedgerKey(collection, key)] = &peer.WriteRecord{
+	b.write(&peer.WriteRecord{
 		Key:        key,
 		Collection: collection,
 		Type:       peer.WriteRecord_DEL_STATE,
-	}
+	})
 }
 
 func (b *writeBatch) PurgeState(collection string, key string) {
-	b.writes[batchLedgerKey(collection, key)] = &peer.WriteRecord{
+	b.write(&peer.WriteRecord{
 		Key:        key,
 		Collection: collection,
 		Type:       peer.WriteRecord_PURGE_PRIVATE_DATA,
-	}
+	})
 }
 
-func batchLedgerKey(collection string, key string) string {
-	return prefixStateDataWriteBatch + collection + key
+func (b *writeBatch) write(record *peer.WriteRecord) {
+	key := batchKey{
+		Collection: record.Collection,
+		Key:        record.Key,
+		Type:       record.Type,
+	}
+	b.writes[key] = record
 }
