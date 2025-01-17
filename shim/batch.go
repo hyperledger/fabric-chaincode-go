@@ -7,10 +7,17 @@ import (
 	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
 )
 
+type batchRecordType int
+
+const (
+	dataKeyType batchRecordType = iota
+	metadataKeyType
+)
+
 type batchKey struct {
 	Collection string
 	Key        string
-	Type       peer.WriteRecord_Type
+	Type       batchRecordType
 }
 
 type writeBatch struct {
@@ -37,7 +44,7 @@ func (b *writeBatch) Writes() []*peer.WriteRecord {
 }
 
 func (b *writeBatch) PutState(collection string, key string, value []byte) {
-	b.write(&peer.WriteRecord{
+	b.writeData(&peer.WriteRecord{
 		Key:        key,
 		Value:      value,
 		Collection: collection,
@@ -46,7 +53,7 @@ func (b *writeBatch) PutState(collection string, key string, value []byte) {
 }
 
 func (b *writeBatch) PutStateMetadataEntry(collection string, key string, metakey string, metadata []byte) {
-	b.write(&peer.WriteRecord{
+	b.writeMetadata(&peer.WriteRecord{
 		Key:        key,
 		Collection: collection,
 		Metadata:   &peer.StateMetadata{Metakey: metakey, Value: metadata},
@@ -55,7 +62,7 @@ func (b *writeBatch) PutStateMetadataEntry(collection string, key string, metake
 }
 
 func (b *writeBatch) DelState(collection string, key string) {
-	b.write(&peer.WriteRecord{
+	b.writeData(&peer.WriteRecord{
 		Key:        key,
 		Collection: collection,
 		Type:       peer.WriteRecord_DEL_STATE,
@@ -63,18 +70,27 @@ func (b *writeBatch) DelState(collection string, key string) {
 }
 
 func (b *writeBatch) PurgeState(collection string, key string) {
-	b.write(&peer.WriteRecord{
+	b.writeData(&peer.WriteRecord{
 		Key:        key,
 		Collection: collection,
 		Type:       peer.WriteRecord_PURGE_PRIVATE_DATA,
 	})
 }
 
-func (b *writeBatch) write(record *peer.WriteRecord) {
+func (b *writeBatch) writeData(record *peer.WriteRecord) {
 	key := batchKey{
 		Collection: record.Collection,
 		Key:        record.Key,
-		Type:       record.Type,
+		Type:       dataKeyType,
+	}
+	b.writes[key] = record
+}
+
+func (b *writeBatch) writeMetadata(record *peer.WriteRecord) {
+	key := batchKey{
+		Collection: record.Collection,
+		Key:        record.Key,
+		Type:       metadataKeyType,
 	}
 	b.writes[key] = record
 }
