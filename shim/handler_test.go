@@ -48,8 +48,6 @@ func TestNewHandler_CreatedState(t *testing.T) {
 		cc:               cc,
 		responseChannels: map[string]chan *peer.ChaincodeMessage{},
 		state:            created,
-		batch:            map[string]map[string]*peer.WriteRecord{},
-		startWriteBatch:  map[string]bool{},
 	}
 
 	handler := newChaincodeHandler(chatStream, cc)
