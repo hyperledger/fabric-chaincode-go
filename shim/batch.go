@@ -35,7 +35,7 @@ func (b *writeBatch) Writes() []*peer.WriteRecord {
 		return nil
 	}
 
-	var results []*peer.WriteRecord
+	results := make([]*peer.WriteRecord, 0, len(b.writes))
 	for _, value := range b.writes {
 		results = append(results, value)
 	}
