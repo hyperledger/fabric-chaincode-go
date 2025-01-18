@@ -253,15 +253,17 @@ func TestGetMSPID(t *testing.T) {
 
 func TestChaincodeStubHandlers(t *testing.T) {
 	var tests = []struct {
-		name     string
-		resType  peer.ChaincodeMessage_Type
-		payload  []byte
-		testFunc func(*ChaincodeStub, *Handler, *testing.T, []byte)
+		name              string
+		resType           peer.ChaincodeMessage_Type
+		payload           []byte
+		usePeerWriteBatch bool
+		testFunc          func(*ChaincodeStub, *Handler, *testing.T, []byte)
 	}{
 		{
-			name:    "Simple Response",
-			resType: peer.ChaincodeMessage_RESPONSE,
-			payload: []byte("myvalue"),
+			name:              "Simple Response",
+			resType:           peer.ChaincodeMessage_RESPONSE,
+			payload:           []byte("myvalue"),
+			usePeerWriteBatch: true,
 			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
 				resp, err := s.GetState("key")
 				if err != nil {
@@ -313,13 +315,13 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				assert.NoError(t, err)
 				err = s.PurgePrivateData("", "key")
 				assert.EqualError(t, err, "collection must not be an empty string")
-
 			},
 		},
 		{
-			name:    "Simple Response with WriteBatch",
-			resType: peer.ChaincodeMessage_RESPONSE,
-			payload: []byte("myvalue"),
+			name:              "Simple Response with WriteBatch",
+			resType:           peer.ChaincodeMessage_RESPONSE,
+			payload:           []byte("myvalue"),
+			usePeerWriteBatch: true,
 			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
 				s.StartWriteBatch()
 				err := s.PutState("key", payload)
@@ -364,6 +366,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 					},
 				},
 			),
+			usePeerWriteBatch: true,
 			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
 				resp, err := s.GetStateValidationParameter("key")
 				if err != nil {
@@ -392,6 +395,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 					),
 				},
 			),
+			usePeerWriteBatch: true,
 			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
 				resp := s.InvokeChaincode("cc", [][]byte{}, "channel")
 				assert.Equal(t, resp.Payload, []byte("invokechaincode"))
@@ -421,6 +425,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 					HasMore: true,
 				},
 			),
+			usePeerWriteBatch: true,
 			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
 				expectedResult := &queryresult.KV{
 					Key:   "querykey",
@@ -557,6 +562,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 					HasMore: false,
 				},
 			),
+			usePeerWriteBatch: true,
 			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
 				expectedResult := &queryresult.KeyModification{
 					TxId:  "txid",
@@ -575,9 +581,10 @@ func TestChaincodeStubHandlers(t *testing.T) {
 			},
 		},
 		{
-			name:    "Error Conditions",
-			resType: peer.ChaincodeMessage_ERROR,
-			payload: []byte("error"),
+			name:              "Error Conditions",
+			resType:           peer.ChaincodeMessage_ERROR,
+			payload:           []byte("error"),
+			usePeerWriteBatch: true,
 			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
 				_, err := s.GetState("key")
 				assert.EqualError(t, err, string(payload))
@@ -619,6 +626,110 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				assert.NoError(t, err)
 			},
 		},
+		{
+			name:              "WriteBatch - Old peer (usePeerWriteBatch false)",
+			resType:           peer.ChaincodeMessage_ERROR,
+			payload:           []byte("error"),
+			usePeerWriteBatch: false,
+			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
+				s.StartWriteBatch()
+				err := s.PutState("key", payload)
+				assert.ErrorContains(t, err, string(payload))
+				err = s.FinishWriteBatch()
+				assert.NoError(t, err)
+			},
+		},
+		{
+			name:              "WriteBatch - different operations on the same key",
+			resType:           peer.ChaincodeMessage_RESPONSE,
+			payload:           []byte("myvalue"),
+			usePeerWriteBatch: true,
+			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
+				s.StartWriteBatch()
+
+				err := s.PutState("key", payload)
+				assert.NoError(t, err)
+				err = s.DelState("key")
+				assert.NoError(t, err)
+
+				err = s.PutPrivateData("col", "key", payload)
+				assert.NoError(t, err)
+				err = s.DelPrivateData("col", "key")
+				assert.NoError(t, err)
+				err = s.PurgePrivateData("col", "key")
+				assert.NoError(t, err)
+
+				err = s.FinishWriteBatch()
+				assert.NoError(t, err)
+
+				checkWriteBatch(t, s.handler.chatStream, 1, 2)
+			},
+		},
+		{
+			name:              "WriteBatch - State and StateValidationParameter keys are the same",
+			resType:           peer.ChaincodeMessage_RESPONSE,
+			payload:           []byte("myvalue"),
+			usePeerWriteBatch: true,
+			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
+				s.StartWriteBatch()
+
+				err := s.PutState("key", payload)
+				assert.NoError(t, err)
+				err = s.SetStateValidationParameter("key", payload)
+				assert.NoError(t, err)
+
+				err = s.PutPrivateData("col", "key", payload)
+				assert.NoError(t, err)
+				err = s.SetPrivateDataValidationParameter("col", "key", payload)
+				assert.NoError(t, err)
+
+				err = s.FinishWriteBatch()
+				assert.NoError(t, err)
+
+				checkWriteBatch(t, s.handler.chatStream, 1, 4)
+			},
+		},
+		{
+			name:              "WriteBatch - key uniqueness check c+old - col+d",
+			resType:           peer.ChaincodeMessage_RESPONSE,
+			payload:           []byte("myvalue"),
+			usePeerWriteBatch: true,
+			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
+				s.StartWriteBatch()
+
+				err := s.PutPrivateData("c", "old", payload)
+				assert.NoError(t, err)
+				err = s.PutPrivateData("col", "d", payload)
+				assert.NoError(t, err)
+
+				err = s.FinishWriteBatch()
+				assert.NoError(t, err)
+
+				checkWriteBatch(t, s.handler.chatStream, 1, 2)
+			},
+		},
+		{
+			name:              "WriteBatch - starting a write batch twice",
+			resType:           peer.ChaincodeMessage_RESPONSE,
+			payload:           []byte("myvalue"),
+			usePeerWriteBatch: true,
+			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
+				s.StartWriteBatch()
+
+				err := s.PutState("key", payload)
+				assert.NoError(t, err)
+
+				s.StartWriteBatch()
+
+				err = s.PutState("key1", payload)
+				assert.NoError(t, err)
+
+				err = s.FinishWriteBatch()
+				assert.NoError(t, err)
+
+				checkWriteBatch(t, s.handler.chatStream, 1, 2)
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -630,7 +741,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				cc:                &mockChaincode{},
 				responseChannels:  map[string]chan *peer.ChaincodeMessage{},
 				state:             ready,
-				usePeerWriteBatch: true,
+				usePeerWriteBatch: test.usePeerWriteBatch,
 				maxSizeWriteBatch: 100,
 			}
 			stub := &ChaincodeStub{
@@ -658,4 +769,16 @@ func TestChaincodeStubHandlers(t *testing.T) {
 			test.testFunc(stub, handler, t, test.payload)
 		})
 	}
+}
+
+func checkWriteBatch(t *testing.T, pcs PeerChaincodeStream, expectedSendCall int, expectedCountRecs int) {
+	chatStream, ok := pcs.(*mock.PeerChaincodeStream)
+	assert.True(t, ok)
+	assert.Equal(t, expectedSendCall, chatStream.SendCallCount())
+	peerChaincodeMsg := chatStream.SendArgsForCall(0)
+	assert.Equal(t, peer.ChaincodeMessage_WRITE_BATCH_STATE, peerChaincodeMsg.Type)
+	batch := &peer.WriteBatchState{}
+	err := proto.Unmarshal(peerChaincodeMsg.GetPayload(), batch)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedCountRecs, len(batch.GetRec()))
 }
