@@ -630,8 +630,6 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				cc:                &mockChaincode{},
 				responseChannels:  map[string]chan *peer.ChaincodeMessage{},
 				state:             ready,
-				batch:             map[string]map[string]*peer.WriteRecord{},
-				startWriteBatch:   map[string]bool{},
 				usePeerWriteBatch: true,
 				maxSizeWriteBatch: 100,
 			}
