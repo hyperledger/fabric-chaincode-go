@@ -5,7 +5,7 @@ go 1.22.0
 require (
 	github.com/hyperledger/fabric-protos-go-apiv2 v0.3.5
 	github.com/stretchr/testify v1.10.0
-	google.golang.org/grpc v1.69.4
+	google.golang.org/grpc v1.70.0
 	google.golang.org/protobuf v1.36.3
 )
 
