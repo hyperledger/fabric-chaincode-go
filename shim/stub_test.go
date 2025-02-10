@@ -252,12 +252,19 @@ func TestGetMSPID(t *testing.T) {
 }
 
 func TestChaincodeStubHandlers(t *testing.T) {
+	gmkResult := &peer.GetStateMultipleResult{
+		Values: [][]byte{[]byte("myvalue"), []byte("myvalue")},
+	}
+	getMultipleKeysBytes, err := proto.Marshal(gmkResult)
+	assert.NoError(t, err)
+
 	var tests = []struct {
-		name              string
-		resType           peer.ChaincodeMessage_Type
-		payload           []byte
-		usePeerWriteBatch bool
-		testFunc          func(*ChaincodeStub, *Handler, *testing.T, []byte)
+		name                   string
+		resType                peer.ChaincodeMessage_Type
+		payload                []byte
+		usePeerWriteBatch      bool
+		usePeerGetMultipleKeys bool
+		testFunc               func(*ChaincodeStub, *Handler, *testing.T, []byte)
 	}{
 		{
 			name:              "Simple Response",
@@ -730,6 +737,86 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				checkWriteBatch(t, s.handler.chatStream, 1, 2)
 			},
 		},
+		{
+			name:                   "Get Multiple Keys - peer new",
+			resType:                peer.ChaincodeMessage_RESPONSE,
+			payload:                getMultipleKeysBytes,
+			usePeerGetMultipleKeys: true,
+			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
+				resp, err := s.GetMultipleStates("key", "key2", "key3", "key4")
+				assert.NoError(t, err)
+				assert.Len(t, resp, 4)
+				for _, r := range resp {
+					assert.Equal(t, []byte("myvalue"), r)
+				}
+
+				resp, err = s.GetMultiplePrivateData("col", "key", "key2", "key3", "key4")
+				assert.NoError(t, err)
+				assert.Len(t, resp, 4)
+				for _, r := range resp {
+					assert.Equal(t, []byte("myvalue"), r)
+				}
+			},
+		},
+		{
+			name:    "Get Multiple Keys - peer old",
+			resType: peer.ChaincodeMessage_RESPONSE,
+			payload: []byte("myvalue"),
+			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
+				resp, err := s.GetMultipleStates("key", "key2", "key3", "key4")
+				assert.NoError(t, err)
+				assert.Len(t, resp, 4)
+				for _, r := range resp {
+					assert.Equal(t, payload, r)
+				}
+
+				resp, err = s.GetMultiplePrivateData("col", "key", "key2", "key3", "key4")
+				assert.NoError(t, err)
+				assert.Len(t, resp, 4)
+				for _, r := range resp {
+					assert.Equal(t, payload, r)
+				}
+			},
+		},
+		{
+			name:                   "Get Multiple Keys error - peer new",
+			resType:                peer.ChaincodeMessage_ERROR,
+			payload:                []byte("error"),
+			usePeerGetMultipleKeys: true,
+			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
+				_, err := s.GetMultipleStates("key", "key2")
+				assert.EqualError(t, err, string(payload))
+
+				_, err = s.GetMultiplePrivateData("col", "key", "key2")
+				assert.EqualError(t, err, string(payload))
+			},
+		},
+		{
+			name:    "Get Multiple Keys error - peer old",
+			resType: peer.ChaincodeMessage_ERROR,
+			payload: []byte("error"),
+			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
+				_, err := s.GetMultipleStates("key", "key2")
+				assert.EqualError(t, err, string(payload))
+
+				_, err = s.GetMultiplePrivateData("col", "key", "key2")
+				assert.EqualError(t, err, string(payload))
+			},
+		},
+		{
+			name:    "Get Multiple Keys - without keys",
+			resType: peer.ChaincodeMessage_RESPONSE,
+			payload: []byte("myvalue"),
+			testFunc: func(s *ChaincodeStub, h *Handler, t *testing.T, payload []byte) {
+				resp, err := s.GetMultipleStates()
+				assert.NoError(t, err)
+				assert.Len(t, resp, 0)
+
+				resp, err = s.GetMultiplePrivateData("col")
+				assert.NoError(t, err)
+				assert.Len(t, resp, 0)
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -738,11 +825,13 @@ func TestChaincodeStubHandlers(t *testing.T) {
 			t.Parallel()
 
 			handler := &Handler{
-				cc:                &mockChaincode{},
-				responseChannels:  map[string]chan *peer.ChaincodeMessage{},
-				state:             ready,
-				usePeerWriteBatch: test.usePeerWriteBatch,
-				maxSizeWriteBatch: 100,
+				cc:                     &mockChaincode{},
+				responseChannels:       map[string]chan *peer.ChaincodeMessage{},
+				state:                  ready,
+				usePeerWriteBatch:      test.usePeerWriteBatch,
+				maxSizeWriteBatch:      100,
+				usePeerGetMultipleKeys: test.usePeerGetMultipleKeys,
+				maxSizeGetMultipleKeys: 2,
 			}
 			stub := &ChaincodeStub{
 				ChannelID:                  "channel",
