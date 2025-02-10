@@ -676,7 +676,7 @@ func (iter *CommonIterator) HasNext() bool {
 	return false
 }
 
-// getResultsFromBytes deserializes QueryResult and return either a KV struct
+// getResultFromBytes deserializes QueryResult and return either a KV struct
 // or KeyModification depending on the result type (i.e., state (range/execute)
 // query, history query). Note that queryResult is an empty golang
 // interface that can hold values of any type.
