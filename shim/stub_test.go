@@ -540,6 +540,16 @@ func TestChaincodeStubHandlers(t *testing.T) {
 				assert.Equal(t, "book", qrm.GetBookmark())
 				assert.Equal(t, int32(1), qrm.GetFetchedRecordsCount())
 
+				sqi, qrm, err = s.GetAllStatesCompositeKeyWithPagination(1, "book")
+				assert.NoError(t, err)
+				kv, err = sqi.Next()
+				if err != nil {
+					t.Fatalf("Unexpected error for GetAllStatesCompositeKeyWithPagination: %s", err)
+				}
+				requireProtoEqual(t, expectedResult, kv)
+				assert.Equal(t, "book", qrm.GetBookmark())
+				assert.Equal(t, int32(1), qrm.GetFetchedRecordsCount())
+
 				sqi, qrm, err = s.GetQueryResultWithPagination("query", 1, "book")
 				assert.NoError(t, err)
 				kv, err = sqi.Next()
