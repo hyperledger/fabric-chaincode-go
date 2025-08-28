@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"fmt"
+	"slices"
 
 	"github.com/hyperledger/fabric-chaincode-go/v2/pkg/attrmgr"
 	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
@@ -143,12 +144,7 @@ func (c *ClientID) HasOUValue(OUValue string) (bool, error) {
 		return false, fmt.Errorf("cannot obtain an X509 certificate for the identity")
 	}
 
-	for _, OU := range x509Cert.Subject.OrganizationalUnit {
-		if OU == OUValue {
-			return true, nil
-		}
-	}
-	return false, nil
+	return slices.Contains(x509Cert.Subject.OrganizationalUnit, OUValue), nil
 }
 
 // GetX509Certificate returns the X509 certificate associated with the client,
