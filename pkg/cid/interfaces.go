@@ -17,7 +17,6 @@ type ChaincodeStubInterface interface {
 // ClientIdentity represents information about the identity that submitted the
 // transaction
 type ClientIdentity interface {
-
 	// GetID returns the ID associated with the invoking identity.  This ID
 	// is guaranteed to be unique within the MSP.
 	GetID() (string, error)
