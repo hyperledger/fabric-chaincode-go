@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/hyperledger/fabric-chaincode-go/v2/shim/internal"
-
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/keepalive"
 )
