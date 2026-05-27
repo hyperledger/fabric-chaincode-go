@@ -548,8 +548,12 @@ func (h *Handler) sendBatch(channelID string, txid string, writes []*peer.WriteR
 	return nil
 }
 
-func (h *Handler) handleGetStateByRange(collection, startKey, endKey string, metadata []byte,
-	channelID string, txid string) (*peer.QueryResponse, error) {
+func (h *Handler) handleGetStateByRange(
+	collection, startKey, endKey string,
+	metadata []byte,
+	channelID string,
+	txid string,
+) (*peer.QueryResponse, error) {
 	// Send GET_STATE_BY_RANGE message to peer chaincode support
 	payloadBytes := marshalOrPanic(&peer.GetStateByRange{Collection: collection, StartKey: startKey, EndKey: endKey, Metadata: metadata})
 	msg := &peer.ChaincodeMessage{Type: peer.ChaincodeMessage_GET_STATE_BY_RANGE, Payload: payloadBytes, Txid: txid, ChannelId: channelID}
@@ -651,8 +655,13 @@ func (h *Handler) handleQueryStateClose(id, channelID, txid string) (*peer.Query
 	return nil, fmt.Errorf("incorrect chaincode message %s received. Expecting %s or %s", responseMsg.Type, peer.ChaincodeMessage_RESPONSE, peer.ChaincodeMessage_ERROR)
 }
 
-func (h *Handler) handleGetQueryResult(collection string, query string, metadata []byte,
-	channelID string, txid string) (*peer.QueryResponse, error) {
+func (h *Handler) handleGetQueryResult(
+	collection string,
+	query string,
+	metadata []byte,
+	channelID string,
+	txid string,
+) (*peer.QueryResponse, error) {
 	// Send GET_QUERY_RESULT message to peer chaincode support
 	payloadBytes := marshalOrPanic(&peer.GetQueryResult{Collection: collection, Query: query, Metadata: metadata})
 	msg := &peer.ChaincodeMessage{Type: peer.ChaincodeMessage_GET_QUERY_RESULT, Payload: payloadBytes, Txid: txid, ChannelId: channelID}
@@ -853,7 +862,7 @@ func (h *Handler) handleMessage(msg *peer.ChaincodeMessage, errc chan error) err
 	if err != nil {
 		payload := []byte(err.Error())
 		errorMsg := &peer.ChaincodeMessage{Type: peer.ChaincodeMessage_ERROR, Payload: payload, Txid: msg.Txid}
-		h.serialSend(errorMsg) //nolint:errcheck
+		h.serialSend(errorMsg) //nolint:gosec
 		return err
 	}
 

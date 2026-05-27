@@ -48,7 +48,7 @@ func LoadConfig() (Config, error) {
 	var key []byte
 	path, set := os.LookupEnv("CORE_TLS_CLIENT_KEY_FILE")
 	if set {
-		key, err = os.ReadFile(path)
+		key, err = os.ReadFile(path) //nolint:gosec
 		if err != nil {
 			return Config{}, fmt.Errorf("failed to read private key file: %s", err)
 		}
@@ -66,7 +66,7 @@ func LoadConfig() (Config, error) {
 	var cert []byte
 	path, set = os.LookupEnv("CORE_TLS_CLIENT_CERT_FILE")
 	if set {
-		cert, err = os.ReadFile(path)
+		cert, err = os.ReadFile(path) //nolint:gosec
 		if err != nil {
 			return Config{}, fmt.Errorf("failed to read public key file: %s", err)
 		}
@@ -132,7 +132,8 @@ func LoadTLSConfig(isserver bool, key, cert, root []byte) (*tls.Config, error) {
 	if isserver {
 		tlscfg.ClientCAs = rootCertPool
 		tlscfg.SessionTicketsDisabled = true
-		tlscfg.CipherSuites = []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tlscfg.CipherSuites = []uint16{
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,

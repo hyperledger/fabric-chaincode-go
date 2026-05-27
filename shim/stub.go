@@ -61,7 +61,6 @@ func newChaincodeStub(handler *Handler, channelID, txid string, input *peer.Chai
 		stub.proposal = &peer.Proposal{}
 		err = proto.Unmarshal(signedProposal.ProposalBytes, stub.proposal)
 		if err != nil {
-
 			return nil, fmt.Errorf("failed to extract Proposal from SignedProposal: %s", err)
 		}
 
@@ -437,9 +436,10 @@ func createQueryResponseMetadata(metadataBytes []byte) (*peer.QueryResponseMetad
 	return metadata, nil
 }
 
-func (s *ChaincodeStub) handleGetStateByRange(collection, startKey, endKey string,
-	metadata []byte) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error) {
-
+func (s *ChaincodeStub) handleGetStateByRange(
+	collection, startKey, endKey string,
+	metadata []byte,
+) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error) {
 	response, err := s.handler.handleGetStateByRange(collection, startKey, endKey, metadata, s.ChannelID, s.TxID)
 	if err != nil {
 		return nil, nil, err
@@ -454,9 +454,10 @@ func (s *ChaincodeStub) handleGetStateByRange(collection, startKey, endKey strin
 	return iterator, responseMetadata, nil
 }
 
-func (s *ChaincodeStub) handleGetQueryResult(collection, query string,
-	metadata []byte) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error) {
-
+func (s *ChaincodeStub) handleGetQueryResult(
+	collection, query string,
+	metadata []byte,
+) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error) {
 	response, err := s.handler.handleGetQueryResult(collection, query, metadata, s.ChannelID, s.TxID)
 	if err != nil {
 		return nil, nil, err
@@ -583,9 +584,11 @@ func createQueryMetadata(pageSize int32, bookmark string) ([]byte, error) {
 }
 
 // GetStateByRangeWithPagination ...
-func (s *ChaincodeStub) GetStateByRangeWithPagination(startKey, endKey string, pageSize int32,
-	bookmark string) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error) {
-
+func (s *ChaincodeStub) GetStateByRangeWithPagination(
+	startKey, endKey string,
+	pageSize int32,
+	bookmark string,
+) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error) {
 	if startKey == "" {
 		startKey = emptyKeySubstitute
 	}
@@ -604,9 +607,12 @@ func (s *ChaincodeStub) GetStateByRangeWithPagination(startKey, endKey string, p
 }
 
 // GetStateByPartialCompositeKeyWithPagination ...
-func (s *ChaincodeStub) GetStateByPartialCompositeKeyWithPagination(objectType string, keys []string,
-	pageSize int32, bookmark string) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error) {
-
+func (s *ChaincodeStub) GetStateByPartialCompositeKeyWithPagination(
+	objectType string,
+	keys []string,
+	pageSize int32,
+	bookmark string,
+) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error) {
 	collection := ""
 
 	metadata, err := createQueryMetadata(pageSize, bookmark)
@@ -622,8 +628,11 @@ func (s *ChaincodeStub) GetStateByPartialCompositeKeyWithPagination(objectType s
 }
 
 // GetQueryResultWithPagination ...
-func (s *ChaincodeStub) GetQueryResultWithPagination(query string, pageSize int32,
-	bookmark string) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error) {
+func (s *ChaincodeStub) GetQueryResultWithPagination(
+	query string,
+	pageSize int32,
+	bookmark string,
+) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error) {
 	// Access public data by setting the collection to empty string
 	collection := ""
 
@@ -635,8 +644,10 @@ func (s *ChaincodeStub) GetQueryResultWithPagination(query string, pageSize int3
 }
 
 // GetAllStatesCompositeKeyWithPagination ...
-func (s *ChaincodeStub) GetAllStatesCompositeKeyWithPagination(pageSize int32,
-	bookmark string) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error) {
+func (s *ChaincodeStub) GetAllStatesCompositeKeyWithPagination(
+	pageSize int32,
+	bookmark string,
+) (StateQueryIteratorInterface, *peer.QueryResponseMetadata, error) {
 	collection := ""
 	metadata, err := createQueryMetadata(pageSize, bookmark)
 	if err != nil {
@@ -693,23 +704,25 @@ func (iter *CommonIterator) HasNext() bool {
 // or KeyModification depending on the result type (i.e., state (range/execute)
 // query, history query). Note that queryResult is an empty golang
 // interface that can hold values of any type.
-func (iter *CommonIterator) getResultFromBytes(queryResultBytes *peer.QueryResultBytes,
-	rType resultType) (queryResult, error) {
-
-	if rType == StateQueryResult {
+func (iter *CommonIterator) getResultFromBytes(
+	queryResultBytes *peer.QueryResultBytes,
+	rType resultType,
+) (queryResult, error) {
+	switch rType {
+	case StateQueryResult:
 		stateQueryResult := &queryresult.KV{}
 		if err := proto.Unmarshal(queryResultBytes.ResultBytes, stateQueryResult); err != nil {
 			return nil, fmt.Errorf("error unmarshaling result from bytes: %s", err)
 		}
 		return stateQueryResult, nil
-
-	} else if rType == HistoryQueryResult {
+	case HistoryQueryResult:
 		historyQueryResult := &queryresult.KeyModification{}
 		if err := proto.Unmarshal(queryResultBytes.ResultBytes, historyQueryResult); err != nil {
 			return nil, err
 		}
 		return historyQueryResult, nil
 	}
+
 	return nil, errors.New("wrong result type")
 }
 

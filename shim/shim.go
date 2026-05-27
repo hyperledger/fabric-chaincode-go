@@ -104,7 +104,6 @@ func chatWithPeer(chaincodename string, stream PeerChaincodeStream, cc Chaincode
 	// Register on the stream
 	if err = handler.serialSend(&peer.ChaincodeMessage{Type: peer.ChaincodeMessage_REGISTER, Payload: payload}); err != nil {
 		return fmt.Errorf("error sending chaincode REGISTER: %s", err)
-
 	}
 
 	// holds return values from gRPC Recv below

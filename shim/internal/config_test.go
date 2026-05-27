@@ -29,6 +29,7 @@ IRoYMsQximSiU7XvGCYLslx4GauhRANCAARBGdslxalpg0dxk9GwVhi+Qw9oKZPE
 n1hWPFmusDKtNbDLsHd9k1lU+SWnJKYlg7hmaUvxC1lR2M6KmvAwSUfN
 -----END PRIVATE KEY-----
 `
+
 var certPEM = `-----BEGIN CERTIFICATE-----
 MIICaTCCAhCgAwIBAgIQS46wcUDY2nJ2gQ/7fp/ptzAKBggqhkjOPQQDAjB2MQsw
 CQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5pYTEWMBQGA1UEBxMNU2FuIEZy
@@ -45,6 +46,7 @@ Y2OHBH8AAAEwCgYIKoZIzj0EAwIDRwAwRAIgWgxAuGibD+Da/qCLBryJMDGlyIrx
 HV+tI33lEy1B9qoCIEJD4xipI2WYp1sHmK2nxYPcoTb9WLFdNZ6twKZyw9c8
 -----END CERTIFICATE-----
 `
+
 var rootPEM = `-----BEGIN CERTIFICATE-----
 MIICSTCCAe+gAwIBAgIQWpamEC5/D2N5JKS8FEpgTzAKBggqhkjOPQQDAjB2MQsw
 CQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5pYTEWMBQGA1UEBxMNU2FuIEZy
@@ -173,7 +175,7 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 		PermitWithoutStream: true,
 	}
 
-	var tests = []struct {
+	tests := []struct {
 		name     string
 		env      map[string]string
 		expected Config
@@ -300,7 +302,7 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			for k, v := range test.env {
-				os.Setenv(k, v)
+				os.Setenv(k, v) //nolint:gosec
 			}
 			conf, err := LoadConfig()
 			if test.errMsg == "" {
@@ -320,7 +322,8 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 		Certificates:           []tls.Certificate{clientCert},
 		ClientCAs:              rootPool,
 		SessionTicketsDisabled: true,
-		CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
@@ -335,7 +338,8 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 		Certificates:           []tls.Certificate{clientCert},
 		RootCAs:                nil,
 		SessionTicketsDisabled: true,
-		CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
@@ -346,7 +350,7 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 	}
 
 	// additional tests to differentiate client vs server
-	var tlsTests = []struct {
+	tlsTests := []struct {
 		name     string
 		issrv    bool
 		key      []byte
@@ -486,7 +490,7 @@ func TestLoadPEMEncodedConfig(t *testing.T) {
 		PermitWithoutStream: true,
 	}
 
-	var tests = []struct {
+	tests := []struct {
 		name     string
 		env      map[string]string
 		expected Config
@@ -565,7 +569,7 @@ func TestLoadPEMEncodedConfig(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			for k, v := range test.env {
-				os.Setenv(k, v)
+				os.Setenv(k, v) //nolint:gosec
 			}
 			conf, err := LoadConfig()
 			if test.errMsg == "" {
@@ -631,7 +635,8 @@ func TestTLSClientWithChaincodeServer(t *testing.T) {
 		Certificates:           []tls.Certificate{cert},
 		ClientCAs:              rootPool,
 		SessionTicketsDisabled: true,
-		CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
@@ -642,7 +647,7 @@ func TestTLSClientWithChaincodeServer(t *testing.T) {
 	}
 
 	// given server is good and expects valid TLS connection, test good and invalid scenarios
-	var tlsTests = []struct {
+	tlsTests := []struct {
 		name           string
 		issrv          bool
 		clientKey      []byte

@@ -60,7 +60,7 @@ func TestNewHandler_CreatedState(t *testing.T) {
 func TestHandlerState(t *testing.T) {
 	t.Parallel()
 
-	var tests = []struct {
+	tests := []struct {
 		name        string
 		state       state
 		msg         *peer.ChaincodeMessage
@@ -135,7 +135,7 @@ func TestHandlerState(t *testing.T) {
 func TestHandleMessage(t *testing.T) {
 	t.Parallel()
 
-	var tests = []struct {
+	tests := []struct {
 		name         string
 		msg          *peer.ChaincodeMessage
 		msgType      peer.ChaincodeMessage_Type
@@ -294,5 +294,4 @@ func TestHandlePeerCalls(t *testing.T) {
 
 	_, err = h.handleGetHistoryForKey("key", "channel", "txid")
 	assert.ErrorContains(t, err, "cannot create response channel")
-
 }

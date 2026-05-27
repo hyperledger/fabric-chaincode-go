@@ -23,8 +23,7 @@ type MockQueryIteratorInterface interface {
 }
 
 func TestStart(t *testing.T) {
-
-	var tests = []struct {
+	tests := []struct {
 		name             string
 		envVars          map[string]string
 		peerAddress      string
@@ -129,7 +128,7 @@ func TestStart(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			for k, v := range test.envVars {
-				os.Setenv(k, v)
+				os.Setenv(k, v) //nolint:gosec
 				defer os.Unsetenv(k)
 			}
 			peerAddress = &test.peerAddress
@@ -138,12 +137,10 @@ func TestStart(t *testing.T) {
 			assert.EqualError(t, err, test.expectedErr)
 		})
 	}
-
 }
 
 func TestChaincodeServerStart(t *testing.T) {
-
-	var tests = []struct {
+	tests := []struct {
 		name         string
 		ccsrv        ChaincodeServer
 		streamGetter func(name string) (ClientStream, error)
@@ -199,5 +196,4 @@ func TestChaincodeServerStart(t *testing.T) {
 			}
 		})
 	}
-
 }

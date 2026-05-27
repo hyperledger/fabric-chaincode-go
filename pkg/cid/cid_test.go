@@ -29,6 +29,7 @@ KoZIzj0EAwIDRwAwRAIgCoXaCdU8ZiRKkai0QiXJM/GL5fysLnmG2oZ6XOIdwtsC
 IEmCsI8Mhrvx1doTbEOm7kmIrhQwUVDBNXCWX1t3kJVN
 -----END CERTIFICATE-----
 `
+
 const certWithAttrs = `-----BEGIN CERTIFICATE-----
 MIIB6TCCAY+gAwIBAgIUHkmY6fRP0ANTvzaBwKCkMZZPUnUwCgYIKoZIzj0EAwIw
 GzEZMBcGA1UEAxMQZmFicmljLWNhLXNlcnZlcjAeFw0xNzA5MDgwMzQyMDBaFw0x
@@ -133,8 +134,10 @@ func TestIdemix(t *testing.T) {
 
 func getMockStub() (cid.ChaincodeStubInterface, error) {
 	stub := &mockStub{}
-	sid := &msp.SerializedIdentity{Mspid: "SampleOrg",
-		IdBytes: []byte(certWithOutAttrs)}
+	sid := &msp.SerializedIdentity{
+		Mspid:   "SampleOrg",
+		IdBytes: []byte(certWithOutAttrs),
+	}
 	b, err := proto.Marshal(sid)
 	if err != nil {
 		return nil, err
@@ -145,8 +148,10 @@ func getMockStub() (cid.ChaincodeStubInterface, error) {
 
 func getMockStubWithAttrs() (cid.ChaincodeStubInterface, error) {
 	stub := &mockStub{}
-	sid := &msp.SerializedIdentity{Mspid: "SampleOrg",
-		IdBytes: []byte(certWithAttrs)}
+	sid := &msp.SerializedIdentity{
+		Mspid:   "SampleOrg",
+		IdBytes: []byte(certWithAttrs),
+	}
 	b, err := proto.Marshal(sid)
 	if err != nil {
 		return nil, err
@@ -161,7 +166,8 @@ func getIdemixMockStubWithAttrs() (cid.ChaincodeStubInterface, error) {
 	if err != nil {
 		return nil, err
 	}
-	sid := &msp.SerializedIdentity{Mspid: "idemixOrg",
+	sid := &msp.SerializedIdentity{
+		Mspid:   "idemixOrg",
 		IdBytes: idBytes,
 	}
 	b, err := proto.Marshal(sid)

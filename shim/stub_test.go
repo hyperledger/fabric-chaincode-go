@@ -12,10 +12,9 @@ import (
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/ledger/queryresult"
 	"github.com/hyperledger/fabric-protos-go-apiv2/peer"
-	"google.golang.org/protobuf/proto"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -258,7 +257,7 @@ func TestChaincodeStubHandlers(t *testing.T) {
 	getMultipleKeysBytes, err := proto.Marshal(gmkResult)
 	assert.NoError(t, err)
 
-	var tests = []struct {
+	tests := []struct {
 		name                   string
 		resType                peer.ChaincodeMessage_Type
 		payload                []byte
