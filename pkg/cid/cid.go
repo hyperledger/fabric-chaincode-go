@@ -12,6 +12,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/hyperledger/fabric-chaincode-go/v2/pkg/attrmgr"
 	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
@@ -216,22 +217,22 @@ func (c *ClientID) getAttributesFromIdemix() error {
 // which returns a DN as defined by RFC 2253.
 func getDN(name *pkix.Name) string {
 	r := name.ToRDNSequence()
-	s := ""
-	for i := 0; i < len(r); i++ {
+	var s strings.Builder
+	for i := range r {
 		rdn := r[len(r)-1-i]
 		if i > 0 {
-			s += ","
+			s.WriteString(",")
 		}
 		for j, tv := range rdn {
 			if j > 0 {
-				s += "+"
+				s.WriteString("+")
 			}
 			typeString := tv.Type.String()
 			typeName, ok := attributeTypeNames[typeString]
 			if !ok {
 				derBytes, err := asn1.Marshal(tv.Value)
 				if err == nil {
-					s += typeString + "=#" + hex.EncodeToString(derBytes)
+					s.WriteString(typeString + "=#" + hex.EncodeToString(derBytes))
 					continue // No value escaping necessary.
 				}
 				typeName = typeString
@@ -255,10 +256,10 @@ func getDN(name *pkix.Name) string {
 				}
 			}
 			escaped += valueString[begin:]
-			s += typeName + "=" + escaped
+			s.WriteString(typeName + "=" + escaped)
 		}
 	}
-	return s
+	return s.String()
 }
 
 var attributeTypeNames = map[string]string{
