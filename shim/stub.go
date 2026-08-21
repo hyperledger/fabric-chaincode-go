@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
@@ -413,7 +414,7 @@ type HistoryQueryIterator struct {
 
 // General interface for supporting different types of query results.
 // Actual types differ for different queries
-type queryResult interface{}
+type queryResult any
 
 type resultType uint8
 
@@ -512,14 +513,15 @@ func CreateCompositeKey(objectType string, attributes []string) (string, error) 
 	if err := validateCompositeKeyAttribute(objectType); err != nil {
 		return "", err
 	}
-	ck := compositeKeyNamespace + objectType + string(rune(minUnicodeRuneValue))
+	var ck strings.Builder
+	ck.WriteString(compositeKeyNamespace + objectType + string(rune(minUnicodeRuneValue)))
 	for _, att := range attributes {
 		if err := validateCompositeKeyAttribute(att); err != nil {
 			return "", err
 		}
-		ck += att + string(rune(minUnicodeRuneValue))
+		ck.WriteString(att + string(rune(minUnicodeRuneValue)))
 	}
-	return ck, nil
+	return ck.String(), nil
 }
 
 func splitCompositeKey(compositeKey string) (string, []string, error) {

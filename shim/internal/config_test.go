@@ -299,7 +299,6 @@ func TestLoadBase64EncodedConfig(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			for k, v := range test.env {
 				os.Setenv(k, v) //nolint:gosec
@@ -566,7 +565,6 @@ func TestLoadPEMEncodedConfig(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			for k, v := range test.env {
 				os.Setenv(k, v) //nolint:gosec

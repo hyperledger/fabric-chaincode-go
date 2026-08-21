@@ -125,7 +125,6 @@ func TestStart(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			for k, v := range test.envVars {
 				os.Setenv(k, v) //nolint:gosec
@@ -186,7 +185,6 @@ func TestChaincodeServerStart(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			err := test.ccsrv.Start()
 			if test.expectedErr != "" {

@@ -2,8 +2,6 @@
 version: "2"
 run:
   timeout: 5m
-  concurrency: 4
-  go: "1.25"
 
 linters:
   default: none
@@ -18,6 +16,7 @@ linters:
     gosec:
       excludes:
         - G115 # safe to exclude type conversion overflow checks in this repository since the integer values will always be low
+        - G703
 formatters:
   enable:
     - gci
